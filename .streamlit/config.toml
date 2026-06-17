@@ -1,0 +1,15 @@
+[theme]
+# The main accent color (buttons, sliders, etc.)
+primaryColor = "#0033CC"
+
+# The main background color
+backgroundColor = "#FFFFFF"
+
+# The background color for the sidebar and gray boxes
+secondaryBackgroundColor = "#F0F2F6"
+
+# The text color
+textColor = "#31333F"
+
+# The font style
+font = "sans serif"
