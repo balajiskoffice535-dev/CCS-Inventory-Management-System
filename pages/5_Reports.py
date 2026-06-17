@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import io
 from database.db_connection import run_query
 from fpdf import FPDF
-import resend
 import time
 import os
 import json
