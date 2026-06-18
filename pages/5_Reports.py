@@ -17,8 +17,9 @@ from email.mime.application import MIMEApplication
 # ==========================================
 def send_email_with_pdf(to_email, pdf_data, excel_data, file_name_base):
     # ⚠️ PUT YOUR MANAGER'S EMAIL AND THE APP PASSWORD HERE ⚠️
-    sender_email = "mithingkalliath.centreal@gmail.com" 
-    app_password = "vhjkzbrhrumrktcp"  # No spaces!
+    # Pulling the secure credentials from Streamlit Secrets
+        sender_email = st.secrets["email"]["sender"]
+        app_password = st.secrets["email"]["password"]
 
     try:
         # 1. Create the email message container
