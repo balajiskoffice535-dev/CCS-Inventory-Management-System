@@ -58,7 +58,7 @@ def send_email_with_pdf(to_email, pdf_data, excel_data, file_name_base):
         
 ################################## END ######################################
 
-st.set_page_config(page_title="Reports - CCS", layout="wide")
+st.set_page_config(page_title="Reports - CCS",page_icon="title_logo.png", layout="wide")
 
 # ==========================================
 # GLOBAL SIDEBAR BRANDING (PERMANENT DISK VERSION)
