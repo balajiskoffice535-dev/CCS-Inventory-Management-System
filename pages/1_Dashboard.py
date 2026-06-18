@@ -6,7 +6,7 @@ from database.db_connection import run_query
 import os
 import json
 
-st.set_page_config(page_title="Dashboard - CCS", layout="wide")
+st.set_page_config(page_title="Dashboard - CCS",page_icon="saved_logo.png", layout="wide")
 
 # ==========================================
 # GLOBAL SIDEBAR BRANDING (PERMANENT DISK VERSION)
