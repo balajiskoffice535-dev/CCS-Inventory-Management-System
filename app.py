@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import json
 
-st.set_page_config(page_title="Login - CCS", page_icon="🔒", layout="centered")
+st.set_page_config(page_title="Login - CCS", page_icon="title_logo.png", layout="centered")
 
 # ==========================================
 # GLOBAL SIDEBAR BRANDING (PERMANENT DISK VERSION)
