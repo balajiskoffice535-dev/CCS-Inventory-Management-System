@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import json
 
-st.set_page_config(page_title="Settings - CCS", layout="wide")
+st.set_page_config(page_title="Settings - CCS",page_icon="title_logo.png", layout="wide")
 
 # ==========================================
 # PERMANENT STORAGE SETUP
