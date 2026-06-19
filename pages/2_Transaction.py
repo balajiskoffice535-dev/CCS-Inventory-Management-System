@@ -70,7 +70,7 @@ st.markdown("""
 with st.container():
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        search_query = st.text_input("Search", placeholder="Customer / Supplier / Invoice # / Serial")
+        search_query = st.text_input("Search", placeholder="Customer / Supplier / Invoice / Product")
         payment_type = st.selectbox("Payment Type", ["All", "Cash", "Credit", "NEFT", "RTGS"])
     with col2:
         date_field = st.selectbox("Date Field", ["Sales Date", "Purchase Date"])
@@ -92,7 +92,7 @@ view_type = st.radio(
     horizontal=True
 )
 
-# 2. Your exact base query without the semicolon at the end
+# 2. Your exact base query with Product Name Added
 base_query = """
     SELECT
         t.sales_invoice_date as "Sales Date",
@@ -100,6 +100,7 @@ base_query = """
         COALESCE(c.customer_name, 'Unsold') as "Customer",
         s.supplier_number as "Supplier No.",
         s.supplier_name as "Supplier",
+        COALESCE(t.product_name, '-') as "Product Name",
         COALESCE(t.payment_type, '-') as "Payment",
         t.purchase_rate as "Purchase",
         COALESCE(t.sales_rate, 0) as "Sales",
@@ -108,7 +109,7 @@ base_query = """
         t.purchase_date as "Purchase Date",
         t.created_at as "Created",
         t.serial_number as "Serial No",
-        COUNT(t.serial_number) OVER(PARTITION BY t.purchase_date, t.supplier_id, t.purchase_rate) as "Total Qty"
+        COUNT(t.serial_number) OVER(PARTITION BY t.purchase_date, t.supplier_id, t.purchase_rate, t.product_name) as "Total Qty"
     FROM transactions t
     LEFT JOIN suppliers s ON t.supplier_id = s.id
     LEFT JOIN customers c ON t.customer_id = c.id
@@ -118,7 +119,6 @@ base_query = """
 if view_type == "Unsold Stock (Available to Sell)":
     query = base_query + " WHERE t.sales_invoice_date IS NULL;"
 else:
-    # If they didn't click Unsold, they must have clicked Completed Sales
     query = base_query + " WHERE t.sales_invoice_date IS NOT NULL;"
 
 # 4. Fetch the data!
@@ -129,13 +129,15 @@ if not raw_data:
 else:
     df = pd.DataFrame(raw_data)
     
+    # ✨ ADDED PRODUCT NAME TO SEARCH ✨
     if search_query:
         search_term = search_query.lower()
         df = df[
             df["Customer"].str.lower().str.contains(search_term, na=False) |
             df["Supplier"].str.lower().str.contains(search_term, na=False) |
             df["Invoice #"].str.lower().str.contains(search_term, na=False) |
-            df["Serial No"].str.lower().str.contains(search_term, na=False)
+            df["Serial No"].str.lower().str.contains(search_term, na=False) |
+            df["Product Name"].str.lower().str.contains(search_term, na=False)
         ]
         
     if payment_type != "All":
@@ -143,7 +145,6 @@ else:
         
     date_col = "Sales Date" if date_field == "Sales Date" else "Purchase Date"
     
-    # Force both the column and the calendar inputs into the exact same Pandas datetime format
     df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
     pd_from_date = pd.to_datetime(from_date)
     pd_to_date = pd.to_datetime(to_date)
@@ -181,31 +182,27 @@ else:
     # DYNAMIC TABLE COLUMNS
     # ==========================================
     df.insert(0, "SL", range(1, len(df) + 1))
-    display_cols = ["SL", "Purchase Date", "Sales Date", "Total Qty", "Serial No", "Invoice #", "Customer", "Supplier No.", "Supplier", "Payment", "Purchase", "Sales", "Dispatch", "Paid On"]
     
-    # --- VISUAL CLEANUP: Hide ONLY the repeating Total Qty ---
+    # ✨ ADDED PRODUCT NAME TO DISPLAY COLUMNS ✨
+    display_cols = ["SL", "Purchase Date", "Sales Date", "Total Qty", "Serial No", "Invoice #", "Product Name", "Customer", "Supplier No.", "Supplier", "Payment", "Purchase", "Sales", "Dispatch", "Paid On"]
+    
     display_df = df.copy()
     
-    # Check if this row is part of the same purchase batch as the row above it
     mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & \
-           (display_df['Supplier No.'] == display_df['Supplier No.'].shift())
+           (display_df['Supplier No.'] == display_df['Supplier No.'].shift()) & \
+           (display_df['Product Name'] == display_df['Product Name'].shift())
            
-    # Convert to text BEFORE masking
     display_df['Total Qty'] = display_df['Total Qty'].astype(str)
-    
-    # ONLY erase the 'Total Qty' for duplicate rows. Leave EVERYTHING else completely alone!
     display_df.loc[mask, 'Total Qty'] = ""
 
-    # If looking at Unsold Stock, remove the irrelevant sales columns from the list
     if view_type == "Unsold Stock (Available to Sell)":
         sales_cols_to_hide = ["Sales Date", "Invoice #", "Customer", "Sales", "Dispatch", "Paid On"]
         display_cols = [c for c in display_cols if c not in sales_cols_to_hide]
 
-    # Display the final dynamically sized table
     st.dataframe(display_df[display_cols], use_container_width=True, hide_index=True, height=300)
 
 # =========================================================
-# SECTION 2: MANAGE RECORDS (EDIT & DELETE) - RESTORED!
+# SECTION 2: MANAGE RECORDS (EDIT & DELETE)
 # =========================================================
 st.divider()
 st.subheader("🛠️ Manage Records (Edit / Delete)")
@@ -245,6 +242,9 @@ if selected_serial != "-- Select --":
                     new_sup_name = st.text_input("Supplier Name *", value=txn['supplier_name'] or "")
                     new_sup_num = st.text_input("Supplier Number *", value=txn['supplier_number'] or "")
                     
+                    # ✨ ADDED EDIT FIELD FOR PRODUCT NAME ✨
+                    new_prod_name = st.text_input("Product Name *", value=txn['product_name'] or "")
+                    
                     current_payment = txn['payment_type']
                     payment_options = ["Cash", "Credit", "NEFT", "RTGS"]
                     pay_index = payment_options.index(current_payment) if current_payment in payment_options else 0
@@ -270,10 +270,9 @@ if selected_serial != "-- Select --":
                 update_btn = st.form_submit_button("💾 Save All Changes", type="primary", use_container_width=True)
                 
                 if update_btn:
-                    if not new_sup_name or not new_sup_num or not new_serial:
-                        st.error("Serial Number, Supplier Name, and Supplier Number are mandatory.")
+                    if not new_sup_name or not new_sup_num or not new_serial or not new_prod_name:
+                        st.error("Serial Number, Product Name, Supplier Name, and Supplier Number are mandatory.")
                     else:
-                        # 1. Handle Supplier safely
                         sup_rows = run_query("""
                             INSERT INTO suppliers (supplier_number, supplier_name) 
                             VALUES (%s, %s) 
@@ -287,7 +286,6 @@ if selected_serial != "-- Select --":
                         else:
                             supplier_id = sup_rows[0]['id']
 
-                        # 2. Handle Customer safely
                         customer_id = None
                         if new_cust_name.strip():
                             cust_rows = run_query("""
@@ -303,16 +301,16 @@ if selected_serial != "-- Select --":
                             else:
                                 customer_id = cust_rows[0]['id']
 
-                        # 3. Update Transaction
+                        # ✨ UPDATED THE SQL TO SAVE THE NEW PRODUCT NAME ✨
                         update_query = """
                             UPDATE transactions 
-                            SET serial_number = %s, purchase_date = %s, supplier_id = %s, payment_type = %s, purchase_rate = %s,
+                            SET serial_number = %s, purchase_date = %s, supplier_id = %s, product_name = %s, payment_type = %s, purchase_rate = %s,
                                 sales_invoice_date = %s, invoice_number = %s, customer_id = %s, sales_rate = %s,
                                 date_of_dispatch = %s, date_of_payment = %s, notes = %s
                             WHERE serial_number = %s
                         """
                         result = run_query(update_query, (
-                            new_serial, new_pur_date, supplier_id, new_payment, new_pur_rate,
+                            new_serial, new_pur_date, supplier_id, new_prod_name, new_payment, new_pur_rate,
                             new_inv_date, new_invoice if new_invoice.strip() else None, customer_id, new_sales_rate if new_sales_rate > 0 else None,
                             new_dispatch, new_payment_date, new_notes, 
                             selected_serial 
