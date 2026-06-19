@@ -159,19 +159,22 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # ✨ REORGANIZED DYNAMIC TABLE COLUMNS ✨
+    # ✨ DYNAMIC TABLE COLUMNS (WITH SALES PRODUCT) ✨
     # ==========================================
     df.insert(0, "SL", range(1, len(df) + 1))
     
-    # Clean, logical grouping: Product -> Purchase -> Sales
+    display_df = df.copy()
+    
+    # Mirror the Product Name for the Sales block
+    display_df['Product Name (Sold)'] = display_df['Product Name']
+    
+    # Clean, logical grouping: Purchase -> Serial No -> Sales
     display_cols = [
         "SL", 
-        "Product Name", "Serial No", "Total Qty", 
-        "Purchase Date", "Supplier No.", "Supplier", "Payment", "Purchase", 
-        "Sales Date", "Invoice #", "Customer", "Sales", "Dispatch", "Paid On"
+        "Purchase Date", "Supplier No.", "Supplier", "Product Name", "Total Qty", "Purchase", "Payment", 
+        "Serial No", 
+        "Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales", "Dispatch", "Paid On"
     ]
-    
-    display_df = df.copy()
     
     mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & \
            (display_df['Supplier No.'] == display_df['Supplier No.'].shift()) & \
@@ -181,7 +184,7 @@ else:
     display_df.loc[mask, 'Total Qty'] = ""
 
     if view_type == "Unsold Stock (Available to Sell)":
-        sales_cols_to_hide = ["Sales Date", "Invoice #", "Customer", "Sales", "Dispatch", "Paid On"]
+        sales_cols_to_hide = ["Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales", "Dispatch", "Paid On"]
         display_cols = [c for c in display_cols if c not in sales_cols_to_hide]
 
     st.dataframe(display_df[display_cols], use_container_width=True, hide_index=True, height=300)
@@ -217,7 +220,6 @@ if selected_serial != "-- Select --":
             with st.form("edit_form"):
                 st.info("You can edit ANY field below, including the Serial Number and Product Name.")
                 
-                # ✨ MOVED PRODUCT NAME UP TOP SO IT APPLIES TO SALES TOO ✨
                 top1, top2 = st.columns(2)
                 with top1:
                     new_serial = st.text_input("Serial Number *", value=txn['serial_number'])
