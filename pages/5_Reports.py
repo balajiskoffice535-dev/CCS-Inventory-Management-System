@@ -57,8 +57,6 @@ def send_email_with_pdf(to_email, pdf_data, excel_data, file_name_base):
         
 ################################## END ######################################
         
-################################## END ######################################
-
 st.set_page_config(page_title="Reports - CCS",page_icon="title_logo.png", layout="wide")
 
 # ==========================================
@@ -124,8 +122,8 @@ if generate_btn:
     with st.spinner("Generating Report..."):
         st.subheader("2. Report Preview")
         
-        # Advanced SQL query
-        query = """
+        # ✨ THE SMART SQL BASE QUERY ✨
+        base_query = """
             SELECT 
                 t.purchase_date as "Purchase Date",
                 s.supplier_number as "Supplier No.",
@@ -142,8 +140,16 @@ if generate_btn:
             LEFT JOIN suppliers s ON t.supplier_id = s.id
             LEFT JOIN customers c ON t.customer_id = c.id
             WHERE t.purchase_date >= %s AND t.purchase_date <= %s
-            ORDER BY t.purchase_date DESC, s.supplier_number ASC
         """
+        
+        # ✨ THE DROPDOWN FILTER LOGIC ✨
+        if report_type == "PURCHASE REPORT":
+            # Show everything purchased (unsold + sold)
+            query = base_query + " ORDER BY t.purchase_date DESC, s.supplier_number ASC"
+        else:
+            # For "ALL TRANSACTIONS" and "SALES REPORT", strictly hide unsold warehouse stock
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date DESC, s.supplier_number ASC"
+            
         data = run_query(query, (start_date, end_date))
 
         if not data:
