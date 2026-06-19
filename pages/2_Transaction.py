@@ -88,7 +88,7 @@ st.divider()
 # 1. The Smart Filter Buttons
 view_type = st.radio(
     "Filter Data:", 
-    ["Unsold Stock (Available to Sell)", "Completed Sales", "Everything"],
+    ["Unsold Stock (Available to Sell)", "Completed Sales"],
     horizontal=True
 )
 
@@ -117,10 +117,9 @@ base_query = """
 # 3. Decide what filter to apply based on the button clicked
 if view_type == "Unsold Stock (Available to Sell)":
     query = base_query + " WHERE t.sales_invoice_date IS NULL;"
-elif view_type == "Completed Sales":
-    query = base_query + " WHERE t.sales_invoice_date IS NOT NULL;"
 else:
-    query = base_query + ";" # Just cap it off for "Everything"
+    # If they didn't click Unsold, they must have clicked Completed Sales
+    query = base_query + " WHERE t.sales_invoice_date IS NOT NULL;"
 
 # 4. Fetch the data!
 raw_data = run_query(query)
