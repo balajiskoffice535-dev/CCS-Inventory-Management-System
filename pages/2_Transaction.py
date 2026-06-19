@@ -85,9 +85,16 @@ with st.container():
 
 st.divider()
 
-# Query includes Supplier No. and the Total Qty calculation
-query = """
-    SELECT 
+# 1. The Smart Filter Buttons
+view_type = st.radio(
+    "Filter Data:", 
+    ["Unsold Stock (Available to Sell)", "Completed Sales", "Everything"],
+    horizontal=True
+)
+
+# 2. Your exact base query without the semicolon at the end
+base_query = """
+    SELECT
         t.sales_invoice_date as "Sales Date",
         COALESCE(t.invoice_number, '-') as "Invoice #",
         COALESCE(c.customer_name, 'Unsold') as "Customer",
@@ -106,6 +113,16 @@ query = """
     LEFT JOIN suppliers s ON t.supplier_id = s.id
     LEFT JOIN customers c ON t.customer_id = c.id
 """
+
+# 3. Decide what filter to apply based on the button clicked
+if view_type == "Unsold Stock (Available to Sell)":
+    query = base_query + " WHERE t.sales_invoice_date IS NULL;"
+elif view_type == "Completed Sales":
+    query = base_query + " WHERE t.sales_invoice_date IS NOT NULL;"
+else:
+    query = base_query + ";" # Just cap it off for "Everything"
+
+# 4. Fetch the data!
 raw_data = run_query(query)
 
 if not raw_data:
@@ -126,9 +143,13 @@ else:
         df = df[df["Payment"] == payment_type]
         
     date_col = "Sales Date" if date_field == "Sales Date" else "Purchase Date"
-    df[date_col] = pd.to_datetime(df[date_col]).dt.date
-    df = df.dropna(subset=[date_col]) 
-    df = df[(df[date_col] >= from_date) & (df[date_col] <= to_date)]
+    
+    # Force both the column and the calendar inputs into the exact same Pandas datetime format
+    df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+    pd_from_date = pd.to_datetime(from_date)
+    pd_to_date = pd.to_datetime(to_date)
+
+    df = df[(df[date_col] >= pd_from_date) & (df[date_col] <= pd_to_date)]
     
     sort_col_map = {
         "Created": "Created", "Sales Date": "Sales Date", "Purchase Date": "Purchase Date",
@@ -136,14 +157,30 @@ else:
     }
     df = df.sort_values(by=sort_col_map[sort_by], ascending=(direction == "Ascending"))
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("RECORDS", len(df))
-    m2.metric("TOTAL SALES", f"₹ {df['Sales'].sum():,.2f}")
-    m3.metric("TOTAL PURCHASE", f"₹ {df['Purchase'].sum():,.2f}")
-    m4.metric("REVENUE", f"₹ {(df['Sales'].sum() - df['Purchase'].sum()):,.2f}")
+    # ==========================================
+    # DYNAMIC METRICS CARDS
+    # ==========================================
+    total_records = len(df)
+    total_purchase = df['Purchase'].sum() if 'Purchase' in df.columns else 0
+    total_sales = df['Sales'].sum() if 'Sales' in df.columns else 0
+    revenue = total_sales - total_purchase
+
+    if view_type == "Unsold Stock (Available to Sell)":
+        m1, m2 = st.columns(2)
+        m1.metric("RECORDS", total_records)
+        m2.metric("TOTAL PURCHASE", f"₹ {total_purchase:,.2f}")
+    else:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("RECORDS", total_records)
+        m2.metric("TOTAL SALES", f"₹ {total_sales:,.2f}")
+        m3.metric("TOTAL PURCHASE", f"₹ {total_purchase:,.2f}")
+        m4.metric("REVENUE", f"₹ {revenue:,.2f}")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ==========================================
+    # DYNAMIC TABLE COLUMNS
+    # ==========================================
     df.insert(0, "SL", range(1, len(df) + 1))
     display_cols = ["SL", "Purchase Date", "Sales Date", "Total Qty", "Serial No", "Invoice #", "Customer", "Supplier No.", "Supplier", "Payment", "Purchase", "Sales", "Dispatch", "Paid On"]
     
@@ -151,16 +188,21 @@ else:
     display_df = df.copy()
     
     # Check if this row is part of the same purchase batch as the row above it
-    mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & (display_df['Supplier No.'] == display_df['Supplier No.'].shift())
+    mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & \
+           (display_df['Supplier No.'] == display_df['Supplier No.'].shift())
+           
     # Convert to text BEFORE masking
     display_df['Total Qty'] = display_df['Total Qty'].astype(str)
-        
-    mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & \
-            (display_df['Supplier No.'] == display_df['Supplier No.'].shift())
+    
     # ONLY erase the 'Total Qty' for duplicate rows. Leave EVERYTHING else completely alone!
     display_df.loc[mask, 'Total Qty'] = ""
 
-    # Display the table
+    # If looking at Unsold Stock, remove the irrelevant sales columns from the list
+    if view_type == "Unsold Stock (Available to Sell)":
+        sales_cols_to_hide = ["Sales Date", "Invoice #", "Customer", "Sales", "Dispatch", "Paid On"]
+        display_cols = [c for c in display_cols if c not in sales_cols_to_hide]
+
+    # Display the final dynamically sized table
     st.dataframe(display_df[display_cols], use_container_width=True, hide_index=True, height=300)
 
 # =========================================================
