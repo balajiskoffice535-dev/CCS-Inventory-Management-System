@@ -48,17 +48,18 @@ st.sidebar.markdown(f"<h3 style='text-align: center;'>{company_title}</h3>", uns
 st.sidebar.markdown("---")
 
 st.title("👥 Customer & Warranty Lookup")
-st.write("Search transactions by customer name, invoice, or serial number.")
+st.write("Search transactions by customer name, product, invoice, or serial number.")
 
-# --- SEARCH BAR ---
-search_query = st.text_input("🔍 Search", placeholder="Search by customer name, serial number, invoice...")
+# --- SEARCH BAR (UPDATED PLACEHOLDER) ---
+search_query = st.text_input("🔍 Search", placeholder="Search by customer name, product, serial number, invoice...")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- FETCH DATA ---
+# --- FETCH DATA (UPDATED WITH PRODUCT NAME) ---
 query = """
     SELECT 
         c.customer_name as "Customer",
+        COALESCE(t.product_name, '-') as "Product Name",
         t.serial_number as "Serial Number",
         COALESCE(t.invoice_number, '-') as "Invoice",
         t.sales_invoice_date as "Sales Date",
@@ -76,13 +77,14 @@ if not raw_data:
 else:
     df = pd.DataFrame(raw_data)
     
-    # --- SEARCH LOGIC ---
+    # --- SEARCH LOGIC (UPDATED WITH PRODUCT NAME) ---
     if search_query:
         search_term = search_query.lower()
         df = df[
             df["Customer"].str.lower().str.contains(search_term, na=False) |
             df["Serial Number"].str.lower().str.contains(search_term, na=False) |
-            df["Invoice"].str.lower().str.contains(search_term, na=False)
+            df["Invoice"].str.lower().str.contains(search_term, na=False) |
+            df["Product Name"].str.lower().str.contains(search_term, na=False)
         ]
         
     if df.empty:
