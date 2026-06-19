@@ -71,6 +71,10 @@ with col1:
     purchase_date = st.date_input("Purchase Date *", datetime.now())
     supplier_name = st.text_input("Supplier Name *", placeholder="e.g., Redington Limited")
     supplier_number = st.text_input("Supplier Number *", placeholder="e.g., SUP-001")
+    
+    # ✨ NEW PRODUCT NAME FIELD ✨
+    product_name = st.text_input("Product Name *", placeholder="e.g., Dynabook Portage X40")
+    
     payment_type = st.selectbox("Payment Type", ["Cash", "Credit", "NEFT", "RTGS"])
     purchase_rate = st.number_input("Purchase Rate (₹) *", min_value=0.0, step=100.0, format="%.2f")
 
@@ -102,8 +106,8 @@ notes = st.text_area("Additional Notes")
 
 # --- SAVE BUTTON ACTION ---
 if st.button("💾 Save Transactions", type="primary", use_container_width=True):
-    # 1. Validation check
-    if not supplier_name or not supplier_number or not serial_input or purchase_rate <= 0:
+    # 1. Validation check (Added product_name to mandatory fields)
+    if not supplier_name or not supplier_number or not product_name or not serial_input or purchase_rate <= 0:
         st.error("Please fill in all mandatory fields (*) marked with an asterisk and enter at least one serial number.")
     else:
         # 2. Process and split serial numbers (Module 3 Business Logic)
@@ -148,17 +152,18 @@ if st.button("💾 Save Transactions", type="primary", use_container_width=True)
 
             # 5. Loop through every single serial number and create a separate database row
             for serial in serial_list:
+                # ✨ INJECTED PRODUCT NAME INTO THE SQL QUERY ✨
                 transaction_query = """
                     INSERT INTO transactions (
-                        serial_number, purchase_date, supplier_id, payment_type, purchase_rate,
+                        serial_number, purchase_date, supplier_id, product_name, payment_type, purchase_rate,
                         sales_invoice_date, invoice_number, customer_id, sales_rate,
                         date_of_dispatch, date_of_payment, notes
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (serial_number) DO NOTHING;
                 """
                 
                 result = run_query(transaction_query, (
-                    serial, purchase_date, supplier_id, payment_type, purchase_rate,
+                    serial, purchase_date, supplier_id, product_name, payment_type, purchase_rate,
                     sales_invoice_date, invoice_number, customer_id, 
                     sales_rate if sales_rate > 0 else None,
                     date_of_dispatch, date_of_payment, notes
