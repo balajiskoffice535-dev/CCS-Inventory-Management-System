@@ -8,35 +8,20 @@ import json
 st.set_page_config(page_title="Records - CCS",page_icon="title_logo.png", layout="wide")
 
 # ==========================================
-# GLOBAL SIDEBAR BRANDING (PERMANENT DISK VERSION)
+# GLOBAL SIDEBAR BRANDING
 # ==========================================
-
-# ✨ THE CSS HACK TO FLIP THE SIDEBAR ORDER ✨
 st.markdown("""
     <style>
-        /* Force the sidebar to behave like a vertical flexbox */
-        [data-testid="stSidebar"] > div:first-child {
-            display: flex;
-            flex-direction: column;
-        }
-        /* Force the default Streamlit navigation menu to drop down to the bottom */
-        [data-testid="stSidebarNav"] {
-            order: 2;
-            margin-top: -110px; /* Adds a little breathing room above the menu */
-        }
-        /* Optional: Hide the default Streamlit watermark at the very bottom */
-        [data-testid="stSidebarNav"]::before {
-            content: "";
-        }
+        [data-testid="stSidebar"] > div:first-child { display: flex; flex-direction: column; }
+        [data-testid="stSidebarNav"] { order: 2; margin-top: -110px; }
+        [data-testid="stSidebarNav"]::before { content: ""; }
     </style>
 """, unsafe_allow_html=True)
 
-# 1. Look for the physical logo file
 if os.path.exists("saved_logo.png"):
     st.sidebar.image("saved_logo.png", use_column_width=True)
 
-# 2. Look for the physical settings file
-company_title = "CENTREAL CONSULTANCY SERVICES" # Default
+company_title = "CENTREAL CONSULTANCY SERVICES" 
 if os.path.exists("settings.json"):
     with open("settings.json", "r") as f:
         try:
@@ -51,7 +36,6 @@ st.sidebar.markdown("---")
 st.title("🗃️ Records")
 st.write("Search, filter, sort & manage all transactions.")
 
-# --- CUSTOM CSS FOR METRIC CARDS ---
 st.markdown("""
     <style>
     div[data-testid="metric-container"] {
@@ -85,14 +69,12 @@ with st.container():
 
 st.divider()
 
-# 1. The Smart Filter Buttons
 view_type = st.radio(
     "Filter Data:", 
     ["Unsold Stock (Available to Sell)", "Completed Sales"],
     horizontal=True
 )
 
-# 2. Your exact base query with Product Name Added
 base_query = """
     SELECT
         t.sales_invoice_date as "Sales Date",
@@ -115,13 +97,11 @@ base_query = """
     LEFT JOIN customers c ON t.customer_id = c.id
 """
 
-# 3. Decide what filter to apply based on the button clicked
 if view_type == "Unsold Stock (Available to Sell)":
     query = base_query + " WHERE t.sales_invoice_date IS NULL;"
 else:
     query = base_query + " WHERE t.sales_invoice_date IS NOT NULL;"
 
-# 4. Fetch the data!
 raw_data = run_query(query)
 
 if not raw_data:
@@ -129,7 +109,6 @@ if not raw_data:
 else:
     df = pd.DataFrame(raw_data)
     
-    # ✨ ADDED PRODUCT NAME TO SEARCH ✨
     if search_query:
         search_term = search_query.lower()
         df = df[
@@ -151,15 +130,16 @@ else:
 
     df = df[(df[date_col] >= pd_from_date) & (df[date_col] <= pd_to_date)]
     
+    # Fix the ugly 00:00:00 time stamps
+    df["Sales Date"] = pd.to_datetime(df["Sales Date"]).dt.date
+    df["Purchase Date"] = pd.to_datetime(df["Purchase Date"]).dt.date
+    
     sort_col_map = {
         "Created": "Created", "Sales Date": "Sales Date", "Purchase Date": "Purchase Date",
         "Purchase Value": "Purchase", "Sales Value": "Sales"
     }
     df = df.sort_values(by=sort_col_map[sort_by], ascending=(direction == "Ascending"))
 
-    # ==========================================
-    # DYNAMIC METRICS CARDS
-    # ==========================================
     total_records = len(df)
     total_purchase = df['Purchase'].sum() if 'Purchase' in df.columns else 0
     total_sales = df['Sales'].sum() if 'Sales' in df.columns else 0
@@ -179,12 +159,17 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # DYNAMIC TABLE COLUMNS
+    # ✨ REORGANIZED DYNAMIC TABLE COLUMNS ✨
     # ==========================================
     df.insert(0, "SL", range(1, len(df) + 1))
     
-    # ✨ ADDED PRODUCT NAME TO DISPLAY COLUMNS ✨
-    display_cols = ["SL", "Purchase Date", "Sales Date", "Total Qty", "Serial No", "Invoice #", "Product Name", "Customer", "Supplier No.", "Supplier", "Payment", "Purchase", "Sales", "Dispatch", "Paid On"]
+    # Clean, logical grouping: Product -> Purchase -> Sales
+    display_cols = [
+        "SL", 
+        "Product Name", "Serial No", "Total Qty", 
+        "Purchase Date", "Supplier No.", "Supplier", "Payment", "Purchase", 
+        "Sales Date", "Invoice #", "Customer", "Sales", "Dispatch", "Paid On"
+    ]
     
     display_df = df.copy()
     
@@ -230,8 +215,15 @@ if selected_serial != "-- Select --":
         
         with tab1:
             with st.form("edit_form"):
-                st.info("You can edit ANY field below, including the Serial Number itself.")
-                new_serial = st.text_input("Serial Number *", value=txn['serial_number'])
+                st.info("You can edit ANY field below, including the Serial Number and Product Name.")
+                
+                # ✨ MOVED PRODUCT NAME UP TOP SO IT APPLIES TO SALES TOO ✨
+                top1, top2 = st.columns(2)
+                with top1:
+                    new_serial = st.text_input("Serial Number *", value=txn['serial_number'])
+                with top2:
+                    new_prod_name = st.text_input("Product Name *", value=txn['product_name'] or "")
+                
                 st.markdown("<hr/>", unsafe_allow_html=True)
                 
                 ec1, ec2 = st.columns(2)
@@ -241,9 +233,6 @@ if selected_serial != "-- Select --":
                     new_pur_date = st.date_input("Purchase Date", value=txn['purchase_date'])
                     new_sup_name = st.text_input("Supplier Name *", value=txn['supplier_name'] or "")
                     new_sup_num = st.text_input("Supplier Number *", value=txn['supplier_number'] or "")
-                    
-                    # ✨ ADDED EDIT FIELD FOR PRODUCT NAME ✨
-                    new_prod_name = st.text_input("Product Name *", value=txn['product_name'] or "")
                     
                     current_payment = txn['payment_type']
                     payment_options = ["Cash", "Credit", "NEFT", "RTGS"]
@@ -301,7 +290,6 @@ if selected_serial != "-- Select --":
                             else:
                                 customer_id = cust_rows[0]['id']
 
-                        # ✨ UPDATED THE SQL TO SAVE THE NEW PRODUCT NAME ✨
                         update_query = """
                             UPDATE transactions 
                             SET serial_number = %s, purchase_date = %s, supplier_id = %s, product_name = %s, payment_type = %s, purchase_rate = %s,
