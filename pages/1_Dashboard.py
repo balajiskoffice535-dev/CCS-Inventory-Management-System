@@ -214,60 +214,40 @@ with row2_col2:
         fig4.update_xaxes(type='category', showgrid=False)
         st.plotly_chart(fig4, use_container_width=True)
         
+from database.db_connection import run_query # Make sure this is at the top of your file!
+
 # ==========================================
-# 6. SIMPLE MANUAL STOCK CONTROLLER
+# 6. LIVE DATABASE STOCK CONTROLLER
 # ==========================================
 st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<h4 style='color:#1e293b; margin-bottom:10px;'>📦 Live Stock Status</h4>", unsafe_allow_html=True)
 
-# 1. Setup Session State to remember the numbers even if you click away
-if 'manual_total_bought' not in st.session_state:
-    st.session_state['manual_total_bought'] = 0
-if 'manual_total_sold' not in st.session_state:
-    st.session_state['manual_total_sold'] = 0
+# 1. Ask the Neon Database for the real numbers!
+try:
+    # Fetch Total Bought (Count every single serial number in the database)
+    bought_data = run_query("SELECT COUNT(serial_number) as total FROM transactions;")
+    total_bought = bought_data[0]['total'] if bought_data and bought_data[0]['total'] is not None else 0
 
-# Calculate what is left
-remaining_stock = st.session_state['manual_total_bought'] - st.session_state['manual_total_sold']
+    # Fetch Total Sold (Count ONLY rows where sales_invoice_date has been filled in)
+    sold_data = run_query("SELECT COUNT(serial_number) as total FROM transactions WHERE sales_invoice_date IS NOT NULL;")
+    total_sold = sold_data[0]['total'] if sold_data and sold_data[0]['total'] is not None else 0
 
-# 2. Display the Big Numbers
-st.markdown("<h4 style='color:#1e293b; margin-bottom:10px;'>📦 Quick Stock Status</h4>", unsafe_allow_html=True)
+except Exception as e:
+    total_bought, total_sold = 0, 0
+    st.warning("Calculating live stock data...")
 
+# Calculate what is currently sitting in the warehouse
+remaining_stock = total_bought - total_sold
+
+# 2. Display the Big Numbers dynamically
 col_stat1, col_stat2, col_stat3 = st.columns(3)
 with col_stat1:
     with st.container(border=True):
-        st.metric("Total Laptops Bought", st.session_state['manual_total_bought'])
+        st.metric("Total Items Bought", int(total_bought))
 with col_stat2:
     with st.container(border=True):
-        st.metric("Total Laptops Sold", st.session_state['manual_total_sold'])
+        st.metric("Total Items Sold", int(total_sold))
 with col_stat3:
     with st.container(border=True):
-        # Give the remaining stock a color based on if it's running low!
-        st.metric("Currently Remaining", remaining_stock, delta="In Stock", delta_color="normal")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# 3. The Manager's Input Controls
-with st.container(border=True):
-    st.markdown("<h5 style='color:#1e293b; margin-bottom:10px;'>⚙️ Update Stock Numbers</h5>", unsafe_allow_html=True)
-    
-    col_input1, col_input2, col_input3 = st.columns([1, 1, 0.5])
-    
-    with col_input1:
-        new_total = st.number_input("1. Set Overall Total Bought", min_value=0, step=1, value=st.session_state['manual_total_bought'])
-        if st.button("Update Total", type="secondary", use_container_width=True):
-            st.session_state['manual_total_bought'] = new_total
-            st.rerun()
-            
-    with col_input2:
-        daily_sold = st.number_input("2. How many sold today?", min_value=0, step=1, value=0)
-        if st.button("Log Daily Sale", type="primary", use_container_width=True):
-            if daily_sold > 0:
-                st.session_state['manual_total_sold'] += daily_sold
-                st.rerun()
-                
-    with col_input3:
-        st.write("Need to start over?")
-        st.write("") # spacing
-        if st.button("Reset All to Zero", use_container_width=True):
-            st.session_state['manual_total_bought'] = 0
-            st.session_state['manual_total_sold'] = 0
-            st.rerun()
+        # The remaining stock updates instantly anytime a sale is logged!
+        st.metric("Currently Remaining", int(remaining_stock), delta="In Stock", delta_color="normal")
