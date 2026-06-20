@@ -58,7 +58,7 @@ st.markdown("""
 
 # 1. Look for the physical logo file
 if os.path.exists("saved_logo.png"):
-    st.sidebar.image("saved_logo.png", use_column_width=True)
+    st.sidebar.image("saved_logo.png", use_container_width=True)
 
 # 2. Look for the physical settings file
 company_title = "CENTREAL CONSULTANCY SERVICES" # Default
@@ -83,7 +83,8 @@ with st.container(border=True):
     
     with col_logo_preview:
         if os.path.exists(LOGO_FILE):
-            st.image(LOGO_FILE, use_column_width=True) 
+            # ✨ FIXED: Removed 'sidebar' so it previews in the center column!
+            st.image("saved_logo.png", use_container_width=True) 
         else:
             st.markdown(
                 "<div style='width:100px; height:100px; border-radius:10px; background-color:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:12px; font-weight:bold;'>No Logo</div>", 
