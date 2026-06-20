@@ -19,16 +19,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if os.path.exists("saved_logo.png"):
-    st.sidebar.image("saved_logo.png", use_column_width=True)
+    st.sidebar.image("saved_logo.png", use_container_width=True)
 
-company_title = "CENTREAL CONSULTANCY SERVICES" 
+# ✨ DYNAMIC COMPANY NAME FIX ✨
+company_title = "CENTREAL CONSULTANCY SERVICES" # Default fallback
 if os.path.exists("settings.json"):
-    with open("settings.json", "r") as f:
-        try:
-            saved_data = json.load(f)
-            company_title = saved_data.get("company_name", company_title)
-        except Exception:
-            pass
+    import json
+    try:
+        with open("settings.json", "r") as f:
+            settings_data = json.load(f)
+            if "company_name" in settings_data and settings_data["company_name"]:
+                company_title = settings_data["company_name"]
+    except Exception:
+        pass
 
 st.sidebar.markdown(f"<h3 style='text-align: center;'>{company_title}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
@@ -60,10 +63,12 @@ with st.container():
         date_field = st.selectbox("Date Field", ["Sales Date", "Purchase Date"])
         sort_by = st.selectbox("Sort By", ["Created", "Sales Date", "Purchase Date", "Purchase Value", "Sales Value"])
     with col3:
-        from_date = st.date_input("From", datetime.today() - timedelta(days=30))
+        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
+        from_date = st.date_input("From", datetime.today() - timedelta(days=30), format="DD/MM/YYYY")
         direction = st.selectbox("Direction", ["Descending", "Ascending"])
     with col4:
-        to_date = st.date_input("To", datetime.today())
+        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
+        to_date = st.date_input("To", datetime.today(), format="DD/MM/YYYY")
         st.markdown("<br>", unsafe_allow_html=True)
         apply_filters = st.button("Apply Filters", type="primary", use_container_width=True)
 
@@ -84,8 +89,8 @@ base_query = """
         s.supplier_name as "Supplier",
         COALESCE(t.product_name, '-') as "Product Name",
         COALESCE(t.payment_type, '-') as "Payment",
-        t.purchase_rate as "Purchase",
-        COALESCE(t.sales_rate, 0) as "Sales",
+        t.purchase_rate as "Purchase (Rate - Without Tax)",
+        COALESCE(t.sales_rate, 0) as "Sales (Rate - Without Tax)",
         t.date_of_dispatch as "Dispatch",
         t.date_of_payment as "Paid On",
         t.purchase_date as "Purchase Date",
@@ -130,10 +135,6 @@ else:
 
     df = df[(df[date_col] >= pd_from_date) & (df[date_col] <= pd_to_date)]
     
-    # Fix the ugly 00:00:00 time stamps
-    df["Sales Date"] = pd.to_datetime(df["Sales Date"]).dt.date
-    df["Purchase Date"] = pd.to_datetime(df["Purchase Date"]).dt.date
-    
     sort_col_map = {
         "Created": "Created", "Sales Date": "Sales Date", "Purchase Date": "Purchase Date",
         "Purchase Value": "Purchase", "Sales Value": "Sales"
@@ -159,7 +160,15 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ==========================================
-    # ✨ DYNAMIC TABLE COLUMNS (WITH SALES PRODUCT) ✨
+    # ✨ FORMAT DATES TO DD/MM/YYYY FOR THE TABLE ✨
+    # ==========================================
+    for d_col in ["Sales Date", "Purchase Date", "Dispatch", "Paid On"]:
+        if d_col in df.columns:
+            # Converts the ugly database timestamp into a clean dd/mm/yyyy string
+            df[d_col] = pd.to_datetime(df[d_col], errors='coerce').dt.strftime('%d/%m/%Y').fillna("-").replace('NaT', '-')
+
+    # ==========================================
+    # ✨ REORGANIZED DYNAMIC TABLE COLUMNS ✨
     # ==========================================
     df.insert(0, "SL", range(1, len(df) + 1))
     
@@ -169,12 +178,7 @@ else:
     display_df['Product Name (Sold)'] = display_df['Product Name']
     
     # Clean, logical grouping: Purchase -> Serial No -> Sales
-    display_cols = [
-        "SL", 
-        "Purchase Date", "Supplier No.", "Supplier", "Product Name", "Total Qty", "Purchase", "Payment", 
-        "Serial No", 
-        "Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales", "Dispatch", "Paid On"
-    ]
+    display_cols = ["SL", "Purchase Date", "Supplier No.", "Supplier", "Product Name", "Total Qty", "Purchase (Rate - Without Tax)", "Payment", "Serial No", "Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales (Rate - Without Tax)", "Dispatch", "Paid On"]
     
     mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & \
            (display_df['Supplier No.'] == display_df['Supplier No.'].shift()) & \
@@ -184,7 +188,7 @@ else:
     display_df.loc[mask, 'Total Qty'] = ""
 
     if view_type == "Unsold Stock (Available to Sell)":
-        sales_cols_to_hide = ["Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales", "Dispatch", "Paid On"]
+        sales_cols_to_hide = ["Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales (Rate - Without Tax)", "Dispatch", "Paid On"]
         display_cols = [c for c in display_cols if c not in sales_cols_to_hide]
 
     st.dataframe(display_df[display_cols], use_container_width=True, hide_index=True, height=300)
@@ -196,7 +200,12 @@ st.divider()
 st.subheader("🛠️ Manage Records (Edit / Delete)")
 st.write("Select a specific Serial Number below to update its details or remove it completely.")
 
-all_serials = run_query("SELECT serial_number FROM transactions ORDER BY created_at DESC")
+# ✨ THE FIX: Make the dropdown listen to the radio button at the top of the page!
+if view_type == "Unsold Stock (Available to Sell)":
+    all_serials = run_query("SELECT serial_number FROM transactions WHERE sales_invoice_date IS NULL ORDER BY created_at DESC")
+else:
+    all_serials = run_query("SELECT serial_number FROM transactions WHERE sales_invoice_date IS NOT NULL ORDER BY created_at DESC")
+
 serial_list = [row['serial_number'] for row in all_serials] if all_serials else []
 
 selected_serial = st.selectbox("Select Serial Number", ["-- Select --"] + serial_list)
@@ -232,7 +241,8 @@ if selected_serial != "-- Select --":
                 
                 with ec1:
                     st.write("**📋 Purchase Details**")
-                    new_pur_date = st.date_input("Purchase Date", value=txn['purchase_date'])
+                    # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
+                    new_pur_date = st.date_input("Purchase Date", value=txn['purchase_date'], format="DD/MM/YYYY")
                     new_sup_name = st.text_input("Supplier Name *", value=txn['supplier_name'] or "")
                     new_sup_num = st.text_input("Supplier Number *", value=txn['supplier_number'] or "")
                     
@@ -246,15 +256,18 @@ if selected_serial != "-- Select --":
                 with ec2:
                     st.write("**🧾 Sales Details**")
                     new_cust_name = st.text_input("Customer Name", value=txn['customer_name'] or "")
-                    new_inv_date = st.date_input("Sales Invoice Date", value=txn['sales_invoice_date'] if txn['sales_invoice_date'] else None)
+                    # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
+                    new_inv_date = st.date_input("Sales Invoice Date", value=txn['sales_invoice_date'] if txn['sales_invoice_date'] else None, format="DD/MM/YYYY")
                     new_invoice = st.text_input("Invoice Number", value=txn['invoice_number'] or "")
                     new_sales_rate = st.number_input("Sales Rate (₹)", value=float(txn['sales_rate'] or 0.0), format="%.2f")
                     
                     dc1, dc2 = st.columns(2)
                     with dc1:
-                        new_dispatch = st.date_input("Dispatch Date", value=txn['date_of_dispatch'] if txn['date_of_dispatch'] else None)
+                        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
+                        new_dispatch = st.date_input("Dispatch Date", value=txn['date_of_dispatch'] if txn['date_of_dispatch'] else None, format="DD/MM/YYYY")
                     with dc2:
-                        new_payment_date = st.date_input("Payment Date", value=txn['date_of_payment'] if txn['date_of_payment'] else None)
+                        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
+                        new_payment_date = st.date_input("Payment Date", value=txn['date_of_payment'] if txn['date_of_payment'] else None, format="DD/MM/YYYY")
 
                 new_notes = st.text_area("Additional Notes", value=txn['notes'] or "")
                 
