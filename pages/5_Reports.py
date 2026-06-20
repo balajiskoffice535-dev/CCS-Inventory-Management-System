@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import io
+import base64
 from database.db_connection import run_query
 from fpdf import FPDF
 import time
@@ -13,7 +14,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 # ==========================================
-# GMAIL EMAIL ENGINE (FREE & BUILT-IN)
+# GMAIL EMAIL ENGINE
 # ==========================================
 def send_email_with_pdf(to_email, pdf_data, excel_data, file_name_base):
     sender_email = st.secrets["email"]["sender"]
@@ -61,16 +62,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if os.path.exists("saved_logo.png"):
-    st.sidebar.image("saved_logo.png", use_column_width=True)
+    st.sidebar.image("saved_logo.png", use_container_width=True)
 
-company_title = "CENTREAL CONSULTANCY SERVICES" 
+# ✨ DYNAMIC COMPANY NAME FIX ✨
+company_title = "CENTREAL CONSULTANCY SERVICES" # Default fallback
 if os.path.exists("settings.json"):
-    with open("settings.json", "r") as f:
-        try:
-            saved_data = json.load(f)
-            company_title = saved_data.get("company_name", company_title)
-        except Exception:
-            pass
+    import json
+    try:
+        with open("settings.json", "r") as f:
+            settings_data = json.load(f)
+            if "company_name" in settings_data and settings_data["company_name"]:
+                company_title = settings_data["company_name"]
+    except Exception:
+        pass
 
 st.sidebar.markdown(f"<h3 style='text-align: center;'>{company_title}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
@@ -82,9 +86,9 @@ col1, col2, col3 = st.columns(3)
 with col1:
     report_type = st.selectbox("Report Type", ["ALL TRANSACTIONS", "PURCHASE REPORT", "SALES REPORT"])
 with col2:
-    start_date = st.date_input("Start Date", datetime.today() - timedelta(days=30))
+    start_date = st.date_input("Start Date", datetime.today() - timedelta(days=30), format="DD/MM/YYYY")
 with col3:
-    end_date = st.date_input("End Date", datetime.today())
+    end_date = st.date_input("End Date", datetime.today(), format="DD/MM/YYYY")
 
 st.markdown("<br>", unsafe_allow_html=True)
 generate_btn = st.button("Generate Report", type="primary", use_container_width=True)
@@ -117,10 +121,16 @@ if generate_btn:
         """
         
         if report_type == "PURCHASE REPORT":
-            query = base_query + " ORDER BY t.purchase_date DESC, s.supplier_number ASC"
-        else:
-            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date DESC, s.supplier_number ASC"
+            # Shows absolutely everything sitting in inventory and sold
+            query = base_query + " ORDER BY t.purchase_date ASC, t.serial_number ASC"
             
+        elif report_type == "SALES REPORT":
+            # Shows only things we sold
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.serial_number ASC"
+            
+        else:
+            # ✨ ALL TRANSACTIONS FIX: Hides unsold inventory so your Revenue is 100% accurate!
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.serial_number ASC"
         data = run_query(query, (start_date, end_date))
 
         if not data:
@@ -129,12 +139,15 @@ if generate_btn:
             df = pd.DataFrame(data)
             df.insert(0, "SL", range(1, len(df) + 1))
             
+            df["Purchase Date"] = pd.to_datetime(df["Purchase Date"]).dt.strftime('%d/%m/%Y')
+            df["Sales Invoice Date"] = pd.to_datetime(df["Sales Invoice Date"], errors='coerce').dt.strftime('%d/%m/%Y')
+            df["Sales Invoice Date"] = df["Sales Invoice Date"].fillna("-").replace("NaT", "-")
+            
             total_qty = len(df)
             total_purchase = df["Rate - Without Tax (P)"].sum()
             total_sales = df["Rate - Without Tax (S)"].sum()
             revenue = total_sales - total_purchase
             
-            # ✨ DYNAMIC WEB PREVIEW (WITH DUPLICATED SALES PRODUCT NAME) ✨
             st.write("Preview of Data:")
             display_df = df.copy()
             
@@ -156,7 +169,7 @@ if generate_btn:
             st.dataframe(display_df, use_container_width=True, hide_index=True, height=300)
             
             # ==========================================
-            # EXCEL EXPORT (UPDATED WITH DUPLICATE COLUMN)
+            # EXCEL EXPORT
             # ==========================================
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -221,7 +234,7 @@ if generate_btn:
                         worksheet.write(excel_row, 5, row['Purchase Mode'], data_format)
                         worksheet.write(excel_row, 7, row['Rate - Without Tax (P)'], currency_data_format)
                         worksheet.write(excel_row, 8, row['Serial Number'], data_format)
-                        worksheet.write(excel_row, 9, str(row['Sales Invoice Date']) if pd.notnull(row['Sales Invoice Date']) else '-', data_format)
+                        worksheet.write(excel_row, 9, str(row['Sales Invoice Date']), data_format)
                         worksheet.write(excel_row, 10, row['Invoice No.'], data_format)
                         worksheet.write(excel_row, 11, row['Product Name'], data_format)
                         worksheet.write(excel_row, 12, row['Customer Name'], data_format)
@@ -239,7 +252,7 @@ if generate_btn:
                     elif report_type == "SALES REPORT":
                         worksheet.write(excel_row, 1, row['Serial Number'], data_format)
                         worksheet.write(excel_row, 2, str(row['Purchase Date']), data_format)
-                        worksheet.write(excel_row, 3, str(row['Sales Invoice Date']) if pd.notnull(row['Sales Invoice Date']) else '-', data_format)
+                        worksheet.write(excel_row, 3, str(row['Sales Invoice Date']), data_format)
                         worksheet.write(excel_row, 4, row['Invoice No.'], data_format)
                         worksheet.write(excel_row, 5, row['Product Name'], data_format)
                         worksheet.write(excel_row, 6, row['Customer Name'], data_format)
@@ -285,20 +298,59 @@ if generate_btn:
             buffer.seek(0)
             
             # ==========================================
-            # PDF EXPORT (RECALCULATED FOR 14 COLUMNS)
+            # ✨ PDF EXPORT (BUG-FREE WRAPPING & HEADERS) ✨
             # ==========================================
             class ReportPDF(FPDF):
                 def header(self):
-                    self.set_font("helvetica", "B", 16)
-                    self.set_text_color(0, 51, 204)
-                    self.cell(0, 10, company_title, new_x="LMARGIN", new_y="NEXT", align="C")
-                    self.set_font("helvetica", "B", 11)
-                    self.set_text_color(30, 41, 59)
-                    self.cell(0, 8, f"Report Type: {report_type}", new_x="LMARGIN", new_y="NEXT", align="C")
-                    self.set_font("helvetica", "I", 9)
-                    self.set_text_color(100, 116, 139)
-                    self.cell(0, 6, f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
-                    self.ln(10)
+                    # 1. Company Name & Report Details (PAGE 1 ONLY)
+                    if self.page_no() == 1:
+                        self.set_font("helvetica", "B", 16)
+                        self.set_text_color(0, 51, 204)
+                        self.cell(0, 10, company_title, new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.set_font("helvetica", "B", 11)
+                        self.set_text_color(30, 41, 59)
+                        self.cell(0, 8, f"Report Type: {report_type}", new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.set_font("helvetica", "I", 9)
+                        self.set_text_color(100, 116, 139)
+                        self.cell(0, 6, f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.ln(5)
+
+                    # 2. Table Column Headers (EVERY PAGE)
+                    if report_type == "ALL TRANSACTIONS":
+                        if self.page_no() == 1:
+                            self.set_fill_color(37, 99, 235); self.set_text_color(255, 255, 255); self.set_font("helvetica", "B", 8)
+                            self.cell(162, 8, "PURCHASE REGISTER", border=1, align="C", fill=True)
+                            self.set_fill_color(30, 58, 138)
+                            self.cell(123, 8, "SALES INVOICE DETAILS", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
+
+                        self.set_fill_color(241, 245, 249); self.set_text_color(30, 41, 59); self.set_font("helvetica", "B", 6)
+                        col_w = [6, 16, 18, 28, 32, 8, 8, 24, 22, 16, 16, 28, 39, 24] 
+                        headers = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Qty', 'Rate - Without Tax', 'Serial No.', 'Sales Date', 'Inv No.', 'Product Name', 'Customer Name', 'Rate - Without Tax']
+                    
+                    elif report_type == "PURCHASE REPORT":
+                        if self.page_no() == 1:
+                            self.set_fill_color(37, 99, 235); self.set_text_color(255, 255, 255); self.set_font("helvetica", "B", 9)
+                            self.cell(198, 8, "PURCHASE REGISTER", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
+
+                        self.set_fill_color(241, 245, 249); self.set_text_color(30, 41, 59); self.set_font("helvetica", "B", 8)
+                        col_w = [8, 22, 25, 35, 40, 12, 10, 22, 24] 
+                        headers = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Qty', 'Rate - Without Tax', 'Serial No.']
+                        
+                    elif report_type == "SALES REPORT":
+                        if self.page_no() == 1:
+                            self.set_fill_color(30, 58, 138); self.set_text_color(255, 255, 255); self.set_font("helvetica", "B", 9)
+                            self.cell(198, 8, "SALES INVOICE DETAILS", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
+
+                        self.set_fill_color(241, 245, 249); self.set_text_color(30, 41, 59); self.set_font("helvetica", "B", 8)
+                        col_w = [8, 25, 22, 22, 25, 35, 39, 22] 
+                        headers = ['SL', 'Serial No.', 'Purch Date', 'Sales Date', 'Inv No.', 'Product Name', 'Customer Name', 'Rate - Without Tax']
+
+                    for i, h in enumerate(headers):
+                        if i == len(headers) - 1:
+                            self.cell(col_w[i], 8, h, border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
+                        else:
+                            self.cell(col_w[i], 8, h, border=1, align="C", fill=True)
+
                 def footer(self):
                     self.set_y(-15)
                     self.set_font("helvetica", "I", 8)
@@ -307,107 +359,132 @@ if generate_btn:
 
             orient = 'L' if report_type == "ALL TRANSACTIONS" else 'P'
             pdf = ReportPDF(orientation=orient, unit='mm', format='A4')
+            pdf.set_margins(6, 10, 6)
             pdf.add_page()
             
-            if report_type == "ALL TRANSACTIONS":
-                pdf.set_fill_color(37, 99, 235); pdf.set_text_color(255, 255, 255); pdf.set_font("helvetica", "B", 9)
-                pdf.cell(138, 8, "PURCHASE REGISTER", border=1, align="C", fill=True)
-                pdf.set_fill_color(30, 58, 138)
-                pdf.cell(96, 8, "SALES INVOICE DETAILS", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
-
-                pdf.set_fill_color(241, 245, 249); pdf.set_text_color(30, 41, 59); pdf.set_font("helvetica", "B", 6.5)
-                col_widths = [7, 18, 18, 22, 22, 10, 8, 15, 18, 18, 16, 22, 25, 15] 
-                headers_list = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Qty', 'Rate(P)', 'Serial No.', 'Sales Date', 'Inv No.', 'Product Name', 'Customer Name', 'Rate(S)']
-            
-            elif report_type == "PURCHASE REPORT":
-                pdf.set_fill_color(37, 99, 235); pdf.set_text_color(255, 255, 255); pdf.set_font("helvetica", "B", 9)
-                pdf.cell(190, 8, "PURCHASE REGISTER", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
-
-                pdf.set_fill_color(241, 245, 249); pdf.set_text_color(30, 41, 59); pdf.set_font("helvetica", "B", 8)
-                col_widths = [8, 22, 25, 30, 35, 15, 10, 20, 25] 
-                headers_list = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Qty', 'Rate (P)', 'Serial No.']
-                
-            elif report_type == "SALES REPORT":
-                pdf.set_fill_color(30, 58, 138); pdf.set_text_color(255, 255, 255); pdf.set_font("helvetica", "B", 9)
-                pdf.cell(190, 8, "SALES INVOICE DETAILS", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
-
-                pdf.set_fill_color(241, 245, 249); pdf.set_text_color(30, 41, 59); pdf.set_font("helvetica", "B", 8)
-                col_widths = [8, 25, 22, 22, 25, 30, 38, 20] 
-                headers_list = ['SL', 'Serial No.', 'Purch Date', 'Sales Date', 'Inv No.', 'Product Name', 'Customer Name', 'Rate (S)']
-
-            for i, h in enumerate(headers_list):
-                pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
-            pdf.ln()
-
-            pdf.set_font("helvetica", "", 6.5 if report_type == "ALL TRANSACTIONS" else 7.5) 
+            pdf.set_font("helvetica", "", 6.5) 
             pdf.set_text_color(0, 0, 0)
             
+            row_h = 10
+            line_h = 3.5 
+            
+            if report_type == "ALL TRANSACTIONS":
+                col_w = [6, 16, 18, 28, 32, 8, 8, 24, 22, 16, 16, 28, 39, 24] 
+            elif report_type == "PURCHASE REPORT":
+                col_w = [8, 22, 25, 35, 40, 12, 10, 22, 24]
+            else:
+                col_w = [8, 25, 22, 22, 25, 35, 39, 22]
+
             for start_idx, end_idx in blocks:
                 qty_val = str(df.iloc[start_idx]['Total Qty'])
                 mid_idx = start_idx + (end_idx - start_idx) // 2
                 
                 for idx in range(start_idx, end_idx + 1):
                     row = df.iloc[idx]
-                    pdf.cell(col_widths[0], 8, str(row['SL']), border=1, align="C")
+                    
+                    if pdf.get_y() + row_h > pdf.h - 20:
+                        pdf.add_page()
+                        
+                    start_x = pdf.get_x()
+                    start_y = pdf.get_y()
+                    
+                    pdf.set_auto_page_break(auto=False)
+                    
+                    def print_wrapped_cell(w, txt, align="C", border=1):
+                        x = pdf.get_x()
+                        y = pdf.get_y()
+                        pdf.cell(w, row_h, "", border=border)
+                        pdf.set_xy(x, y + 1)
+                        pdf.multi_cell(w, line_h, str(txt), border=0, align=align)
+                        pdf.set_xy(x + w, start_y) 
+                        
+                    print_wrapped_cell(col_w[0], str(row['SL']))
                     
                     if report_type == "ALL TRANSACTIONS":
-                        pdf.cell(col_widths[1], 8, str(row['Purchase Date'])[:10], border=1, align="C")
-                        pdf.cell(col_widths[2], 8, str(row['Supplier No.']), border=1, align="C")
-                        pdf.cell(col_widths[3], 8, str(row['Product Name'])[:18], border=1, align="L")
-                        pdf.cell(col_widths[4], 8, str(row['Supplier Name'])[:18], border=1, align="L")
-                        pdf.cell(col_widths[5], 8, str(row['Purchase Mode'])[:5], border=1, align="C")
+                        print_wrapped_cell(col_w[1], str(row['Purchase Date'])[:10])
+                        print_wrapped_cell(col_w[2], str(row['Supplier No.']))
+                        print_wrapped_cell(col_w[3], str(row['Product Name']), align="L")
+                        print_wrapped_cell(col_w[4], str(row['Supplier Name']), align="L")
+                        print_wrapped_cell(col_w[5], str(row['Purchase Mode']))
+                        
                         qty_border = 'LR' 
                         if idx == start_idx: qty_border += 'T' 
                         if idx == end_idx:   qty_border += 'B' 
                         display_qty = qty_val if idx == mid_idx else ""
-                        pdf.cell(col_widths[6], 8, display_qty, border=qty_border, align="C")
-                        pdf.cell(col_widths[7], 8, f"{row['Rate - Without Tax (P)']:,.0f}", border=1, align="R")
-                        pdf.cell(col_widths[8], 8, str(row['Serial Number'])[:15], border=1, align="C")
-                        pdf.cell(col_widths[9], 8, str(row['Sales Invoice Date'])[:10] if pd.notnull(row['Sales Invoice Date']) else "-", border=1, align="C")
-                        pdf.cell(col_widths[10], 8, str(row['Invoice No.'])[:12], border=1, align="C")
-                        pdf.cell(col_widths[11], 8, str(row['Product Name'])[:18], border=1, align="L")
-                        pdf.cell(col_widths[12], 8, str(row['Customer Name'])[:20], border=1, align="L")
-                        pdf.cell(col_widths[13], 8, f"{row['Rate - Without Tax (S)']:,.0f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+                        print_wrapped_cell(col_w[6], display_qty, border=qty_border)
+                        
+                        print_wrapped_cell(col_w[7], f"{row['Rate - Without Tax (P)']:,.0f}", align="R")
+                        print_wrapped_cell(col_w[8], str(row['Serial Number']))
+                        print_wrapped_cell(col_w[9], str(row['Sales Invoice Date'])[:10])
+                        print_wrapped_cell(col_w[10], str(row['Invoice No.']))
+                        print_wrapped_cell(col_w[11], str(row['Product Name']), align="L")
+                        print_wrapped_cell(col_w[12], str(row['Customer Name']), align="L")
+                        print_wrapped_cell(col_w[13], f"{row['Rate - Without Tax (S)']:,.0f}", align="R")
 
                     elif report_type == "PURCHASE REPORT":
-                        pdf.cell(col_widths[1], 8, str(row['Purchase Date'])[:10], border=1, align="C")
-                        pdf.cell(col_widths[2], 8, str(row['Supplier No.']), border=1, align="C")
-                        pdf.cell(col_widths[3], 8, str(row['Product Name'])[:20], border=1, align="L")
-                        pdf.cell(col_widths[4], 8, str(row['Supplier Name'])[:25], border=1, align="L")
-                        pdf.cell(col_widths[5], 8, str(row['Purchase Mode']), border=1, align="C")
+                        print_wrapped_cell(col_w[1], str(row['Purchase Date'])[:10])
+                        print_wrapped_cell(col_w[2], str(row['Supplier No.']))
+                        print_wrapped_cell(col_w[3], str(row['Product Name']), align="L")
+                        print_wrapped_cell(col_w[4], str(row['Supplier Name']), align="L")
+                        print_wrapped_cell(col_w[5], str(row['Purchase Mode']))
+                        
                         qty_border = 'LR' 
                         if idx == start_idx: qty_border += 'T' 
                         if idx == end_idx:   qty_border += 'B' 
                         display_qty = qty_val if idx == mid_idx else ""
-                        pdf.cell(col_widths[6], 8, display_qty, border=qty_border, align="C")
-                        pdf.cell(col_widths[7], 8, f"{row['Rate - Without Tax (P)']:,.0f}", border=1, align="R")
-                        pdf.cell(col_widths[8], 8, str(row['Serial Number']), border=1, align="C", new_x="LMARGIN", new_y="NEXT")
+                        print_wrapped_cell(col_w[6], display_qty, border=qty_border)
+                        
+                        print_wrapped_cell(col_w[7], f"{row['Rate - Without Tax (P)']:,.0f}", align="R")
+                        print_wrapped_cell(col_w[8], str(row['Serial Number']))
 
                     elif report_type == "SALES REPORT":
-                        pdf.cell(col_widths[1], 8, str(row['Serial Number']), border=1, align="C")
-                        pdf.cell(col_widths[2], 8, str(row['Purchase Date'])[:10], border=1, align="C")
-                        pdf.cell(col_widths[3], 8, str(row['Sales Invoice Date'])[:10] if pd.notnull(row['Sales Invoice Date']) else "-", border=1, align="C")
-                        pdf.cell(col_widths[4], 8, str(row['Invoice No.']), border=1, align="C")
-                        pdf.cell(col_widths[5], 8, str(row['Product Name'])[:20], border=1, align="L")
-                        pdf.cell(col_widths[6], 8, str(row['Customer Name'])[:25], border=1, align="L")
-                        pdf.cell(col_widths[7], 8, f"{row['Rate - Without Tax (S)']:,.0f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+                        print_wrapped_cell(col_w[1], str(row['Serial Number']))
+                        print_wrapped_cell(col_w[2], str(row['Purchase Date'])[:10])
+                        print_wrapped_cell(col_w[3], str(row['Sales Invoice Date'])[:10])
+                        print_wrapped_cell(col_w[4], str(row['Invoice No.']))
+                        print_wrapped_cell(col_w[5], str(row['Product Name']), align="L")
+                        print_wrapped_cell(col_w[6], str(row['Customer Name']), align="L")
+                        print_wrapped_cell(col_w[7], f"{row['Rate - Without Tax (S)']:,.0f}", align="R")
+
+                    pdf.set_xy(start_x, start_y + row_h)
+                    pdf.set_auto_page_break(auto=True, margin=15)
 
             pdf.ln(5) 
             pdf.set_font("helvetica", "B", 9)
             pdf.set_text_color(30, 41, 59)
             
-            sum_x = 180 if report_type == "ALL TRANSACTIONS" else 130
+            
+            # ✨ MOVE TOTALS AND SIGNATURE TO ANCHORED BOTTOM ✨
+            # 1. If we are near the bottom, force a new page, but keep the totals/signature together
+            if pdf.get_y() > pdf.h - 50: 
+                pdf.add_page()
+                
+            # 2. Set the Y position to the bottom area (fixed)
+            pdf.set_y(-50) 
+            
+            # 3. Print the Totals
+            pdf.set_font("helvetica", "B", 9)
+            pdf.set_text_color(30, 41, 59)
+            
+            sum_x = 225 if report_type == "ALL TRANSACTIONS" else 138
             
             if report_type in ["ALL TRANSACTIONS", "PURCHASE REPORT"]:
-                pdf.set_x(sum_x); pdf.cell(30, 8, "Total Qty:", align="R"); pdf.cell(30, 8, str(total_qty), align="R", new_x="LMARGIN", new_y="NEXT")
-                pdf.set_x(sum_x); pdf.cell(30, 8, "Total Purchase:", align="R"); pdf.cell(30, 8, f"Rs. {total_purchase:,.0f}", align="R", new_x="LMARGIN", new_y="NEXT")
+                pdf.set_x(sum_x); pdf.cell(30, 6, "Total Qty:", align="R"); pdf.cell(30, 6, str(total_qty), align="R", new_x="LMARGIN", new_y="NEXT")
+                pdf.set_x(sum_x); pdf.cell(30, 6, "Total Purchase:", align="R"); pdf.cell(30, 6, f"Rs. {total_purchase:,.0f}", align="R", new_x="LMARGIN", new_y="NEXT")
+            
             if report_type in ["ALL TRANSACTIONS", "SALES REPORT"]:
-                if report_type == "SALES REPORT":
-                    pdf.set_x(sum_x); pdf.cell(30, 8, "Total Qty:", align="R"); pdf.cell(30, 8, str(total_qty), align="R", new_x="LMARGIN", new_y="NEXT")
-                pdf.set_x(sum_x); pdf.cell(30, 8, "Total Sales:", align="R"); pdf.cell(30, 8, f"Rs. {total_sales:,.0f}", align="R", new_x="LMARGIN", new_y="NEXT")
+                pdf.set_x(sum_x); pdf.cell(30, 6, "Total Sales:", align="R"); pdf.cell(30, 6, f"Rs. {total_sales:,.0f}", align="R", new_x="LMARGIN", new_y="NEXT")
+            
             if report_type == "ALL TRANSACTIONS":
                 pdf.set_text_color(16, 185, 129) 
-                pdf.set_x(sum_x); pdf.cell(30, 8, "Revenue:", align="R"); pdf.cell(30, 8, f"Rs. {revenue:,.0f}", align="R", new_x="LMARGIN", new_y="NEXT")
+                pdf.set_x(sum_x); pdf.cell(30, 6, "Revenue:", align="R"); pdf.cell(30, 6, f"Rs. {revenue:,.0f}", align="R", new_x="LMARGIN", new_y="NEXT")
+
+            # 4. Print the Signature below the totals
+            pdf.set_text_color(30, 41, 59)
+            pdf.ln(5)
+            pdf.set_x(15)
+            pdf.cell(50, 6, "Signature", align="C")
+            # --------------------------------------------
             
             st.session_state['pdf_bytes'] = bytes(pdf.output())
             st.session_state['excel_buffer'] = buffer.getvalue()
@@ -420,7 +497,7 @@ if generate_btn:
 # ==========================================
 if st.session_state.get('report_ready', False):
     st.markdown("<br><hr>", unsafe_allow_html=True)
-    st.subheader("📧 Share & Download")
+    st.subheader("🖨️ Print, Share & Download")
     
     col_email, col_excel, col_pdf = st.columns([2, 1, 1])
     
@@ -474,3 +551,10 @@ if st.session_state.get('report_ready', False):
             mime="application/pdf",
             use_container_width=True
         )
+        
+    st.markdown("### 🖨️ Direct Print Preview (PDF)")
+    st.info("Hover over the document below and click the Print icon in the top right corner.")
+    
+    base64_pdf = base64.b64encode(st.session_state['pdf_bytes']).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
