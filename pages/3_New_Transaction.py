@@ -7,42 +7,30 @@ import json
 st.set_page_config(page_title="New Transaction - CCS",page_icon="title_logo.png", layout="wide")
 
 # ==========================================
-# GLOBAL SIDEBAR BRANDING (PERMANENT DISK VERSION)
+# GLOBAL SIDEBAR BRANDING
 # ==========================================
-
-# ✨ THE CSS HACK TO FLIP THE SIDEBAR ORDER ✨
 st.markdown("""
     <style>
-        /* Force the sidebar to behave like a vertical flexbox */
-        [data-testid="stSidebar"] > div:first-child {
-            display: flex;
-            flex-direction: column;
-        }
-        /* Force the default Streamlit navigation menu to drop down to the bottom */
-        [data-testid="stSidebarNav"] {
-            order: 2;
-            margin-top: -110px; /* Adds a little breathing room above the menu */
-        }
-        /* Optional: Hide the default Streamlit watermark at the very bottom */
-        [data-testid="stSidebarNav"]::before {
-            content: "";
-        }
+        [data-testid="stSidebar"] > div:first-child { display: flex; flex-direction: column; }
+        [data-testid="stSidebarNav"] { order: 2; margin-top: -110px; }
+        [data-testid="stSidebarNav"]::before { content: ""; }
     </style>
 """, unsafe_allow_html=True)
 
-# 1. Look for the physical logo file
 if os.path.exists("saved_logo.png"):
-    st.sidebar.image("saved_logo.png", use_column_width=True)
+    st.sidebar.image("saved_logo.png", use_container_width=True)
 
-# 2. Look for the physical settings file
-company_title = "CENTREAL CONSULTANCY SERVICES" # Default
+# ✨ DYNAMIC COMPANY NAME FIX ✨
+company_title = "CENTREAL CONSULTANCY SERVICES" # Default fallback
 if os.path.exists("settings.json"):
-    with open("settings.json", "r") as f:
-        try:
-            saved_data = json.load(f)
-            company_title = saved_data.get("company_name", company_title)
-        except Exception:
-            pass
+    import json
+    try:
+        with open("settings.json", "r") as f:
+            settings_data = json.load(f)
+            if "company_name" in settings_data and settings_data["company_name"]:
+                company_title = settings_data["company_name"]
+    except Exception:
+        pass
 
 st.sidebar.markdown(f"<h3 style='text-align: center;'>{company_title}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
@@ -68,7 +56,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📋 Purchase Register")
-    purchase_date = st.date_input("Purchase Date *", datetime.now())
+    purchase_date = st.date_input("Purchase Date *", datetime.now(),format="DD/MM/YYYY")
     supplier_name = st.text_input("Supplier Name *", placeholder="e.g., Redington Limited")
     supplier_number = st.text_input("Supplier Number *", placeholder="e.g., SUP-001")
     
@@ -76,21 +64,21 @@ with col1:
     product_name = st.text_input("Product Name *", placeholder="e.g., Dynabook Portage X40")
     
     payment_type = st.selectbox("Payment Type", ["Cash", "Credit", "NEFT", "RTGS"])
-    purchase_rate = st.number_input("Purchase Rate (₹) *", min_value=0.0, step=100.0, format="%.2f")
+    new_pur_rate = st.number_input("Purchase (Rate - Without Tax) ₹ *", min_value=0.0, format="%.2f")
 
 with col2:
     st.subheader("🧾 Sales Invoice Details")
     customer_name = st.text_input("Customer Name", placeholder="e.g., Mantle Solutions")
-    sales_invoice_date = st.date_input("Sales Invoice Date", value=None, help="Leave blank if not sold yet")
+    sales_invoice_date = st.date_input("Sales Invoice Date", value=None, help="Leave blank if not sold yet",format="DD/MM/YYYY")
     invoice_number = st.text_input("Invoice Number", placeholder="e.g., INV-001")
-    sales_rate = st.number_input("Sales Rate (₹)", min_value=0.0, step=100.0, format="%.2f")
+    new_sales_rate = st.number_input("Sales (Rate - Without Tax) ₹", min_value=0.0, format="%.2f")
     
     # Extra Dispatch and Payment Dates from your spec
     dispatch_col, payment_col = st.columns(2)
     with dispatch_col:
-        date_of_dispatch = st.date_input("Dispatch Date", value=None)
+        date_of_dispatch = st.date_input("Dispatch Date", value=None, format="DD/MM/YYYY")
     with payment_col:
-        date_of_payment = st.date_input("Payment Date", value=None)
+        date_of_payment = st.date_input("Payment Date", value=None,format="DD/MM/YYYY")
 
 # --- BOTTOM SECTION: SERIAL NUMBERS & LOGIC ---
 st.markdown("<br>", unsafe_allow_html=True)
@@ -107,7 +95,7 @@ notes = st.text_area("Additional Notes")
 # --- SAVE BUTTON ACTION ---
 if st.button("💾 Save Transactions", type="primary", use_container_width=True):
     # 1. Validation check (Added product_name to mandatory fields)
-    if not supplier_name or not supplier_number or not product_name or not serial_input or purchase_rate <= 0:
+    if not supplier_name or not supplier_number or not product_name or not serial_input or new_pur_rate <= 0:
         st.error("Please fill in all mandatory fields (*) marked with an asterisk and enter at least one serial number.")
     else:
         # 2. Process and split serial numbers (Module 3 Business Logic)
@@ -163,9 +151,9 @@ if st.button("💾 Save Transactions", type="primary", use_container_width=True)
                 """
                 
                 result = run_query(transaction_query, (
-                    serial, purchase_date, supplier_id, product_name, payment_type, purchase_rate,
+                    serial, purchase_date, supplier_id, product_name, payment_type, new_pur_rate,
                     sales_invoice_date, invoice_number, customer_id, 
-                    sales_rate if sales_rate > 0 else None,
+                    new_sales_rate if new_sales_rate > 0 else None,
                     date_of_dispatch, date_of_payment, notes
                 ))
                 
