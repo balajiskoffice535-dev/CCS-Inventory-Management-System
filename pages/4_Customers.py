@@ -7,42 +7,30 @@ import json
 st.set_page_config(page_title="Customers - CCS",page_icon="title_logo.png", layout="wide")
 
 # ==========================================
-# GLOBAL SIDEBAR BRANDING (PERMANENT DISK VERSION)
+# GLOBAL SIDEBAR BRANDING
 # ==========================================
-
-# ✨ THE CSS HACK TO FLIP THE SIDEBAR ORDER ✨
 st.markdown("""
     <style>
-        /* Force the sidebar to behave like a vertical flexbox */
-        [data-testid="stSidebar"] > div:first-child {
-            display: flex;
-            flex-direction: column;
-        }
-        /* Force the default Streamlit navigation menu to drop down to the bottom */
-        [data-testid="stSidebarNav"] {
-            order: 2;
-            margin-top: -110px; /* Adds a little breathing room above the menu */
-        }
-        /* Optional: Hide the default Streamlit watermark at the very bottom */
-        [data-testid="stSidebarNav"]::before {
-            content: "";
-        }
+        [data-testid="stSidebar"] > div:first-child { display: flex; flex-direction: column; }
+        [data-testid="stSidebarNav"] { order: 2; margin-top: -110px; }
+        [data-testid="stSidebarNav"]::before { content: ""; }
     </style>
 """, unsafe_allow_html=True)
 
-# 1. Look for the physical logo file
 if os.path.exists("saved_logo.png"):
-    st.sidebar.image("saved_logo.png", use_column_width=True)
+    st.sidebar.image("saved_logo.png", use_container_width=True)
 
-# 2. Look for the physical settings file
-company_title = "CENTREAL CONSULTANCY SERVICES" # Default
+# ✨ DYNAMIC COMPANY NAME FIX ✨
+company_title = "CENTREAL CONSULTANCY SERVICES" # Default fallback
 if os.path.exists("settings.json"):
-    with open("settings.json", "r") as f:
-        try:
-            saved_data = json.load(f)
-            company_title = saved_data.get("company_name", company_title)
-        except Exception:
-            pass
+    import json
+    try:
+        with open("settings.json", "r") as f:
+            settings_data = json.load(f)
+            if "company_name" in settings_data and settings_data["company_name"]:
+                company_title = settings_data["company_name"]
+    except Exception:
+        pass
 
 st.sidebar.markdown(f"<h3 style='text-align: center;'>{company_title}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
@@ -62,6 +50,7 @@ query = """
         COALESCE(t.product_name, '-') as "Product Name",
         t.serial_number as "Serial Number",
         COALESCE(t.invoice_number, '-') as "Invoice",
+        COALESCE(t.sales_rate, 0) as "Sales (Rate - Without Tax)",
         t.sales_invoice_date as "Sales Date",
         t.date_of_dispatch as "Dispatch Date",
         s.supplier_name as "Supplier"
