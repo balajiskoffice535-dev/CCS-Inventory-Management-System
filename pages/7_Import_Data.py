@@ -136,6 +136,11 @@ if uploaded_file is not None:
                         p_rate = clean_price(row.get('Rate - Without Tax'))
                         s_rate = clean_price(row.get('Rate- Without Tax', row.get('Rate - Without Tax.1')))
                         
+                        # ✨ FIX 3: THIS IS THE MAGIC FIX! Grab the payment type from Excel.
+                        payment_val = str(row.get('Payment', row.get('Payment Type', '-'))).strip()
+                        if payment_val.lower() == 'nan' or payment_val == '':
+                            payment_val = '-'
+
                         inv_no = str(row.get('Invoice No', '')).strip()
                         if inv_no.lower() == 'nan': inv_no = None
 
@@ -147,8 +152,9 @@ if uploaded_file is not None:
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """
                         
+                        # We pass `payment_val` here instead of the hardcoded "-"
                         run_query(insert_query, (
-                            p_date, supplier_id, final_product_name, "-", p_rate,
+                            p_date, supplier_id, final_product_name, payment_val, p_rate,
                             serial_no, s_date, inv_no, customer_id, s_rate
                         ))
                         
