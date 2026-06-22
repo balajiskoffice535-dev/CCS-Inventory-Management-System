@@ -555,9 +555,6 @@ if st.session_state.get('report_ready', False):
     st.markdown("### 🖨️ Direct Print Preview (PDF)")
     st.info("Hover over the document below and click the Print icon in the top right corner.")
     
-    # Encode the PDF
-    # ✨ THE MISSING LINE: This actually generates the PDF in the computer's memory!
-    # The modern way to generate the PDF in memory
     # ✨ THE ULTIMATE CLOUD-SAFE PDF GENERATOR ✨
     try:
             # Tries the standard Cloud method first
@@ -569,15 +566,42 @@ if st.session_state.get('report_ready', False):
         # Encode the PDF
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
         
-        # Using the <object> tag to bypass Chrome's blocker
-    pdf_display = f"""
-            <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="800px">
-                <div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 10px;">
-                    <h4>⚠️ Browser Blocked Preview</h4>
-                    <p>Google Chrome's strict security settings are blocking the live preview.</p>
-                    <p><b>Your PDF was successfully generated!</b> Please click the "Download PDF" button above to view it.</p>
-                </div>
-            </object>
+        # ✨ THE DIRECT PRINT JAVASCRIPT HACK ✨
+    custom_print_button = f"""
+            <script>
+                function directPrint() {{
+                    // Open a tiny invisible new window
+                    var printWindow = window.open('', '_blank');
+                    
+                    // Shove the PDF data into it
+                    printWindow.document.write('<html><body style="margin:0; padding:0;">');
+                    printWindow.document.write('<embed width="100%" height="100%" name="plugin" src="data:application/pdf;base64,{base64_pdf}" type="application/pdf">');
+                    printWindow.document.write('</body></html>');
+                    printWindow.document.close();
+                    
+                    // Tell the browser to open the print dialog after half a second
+                    setTimeout(function() {{
+                        printWindow.print();
+                    }}, 500); 
+                }}
+            </script>
+            
+            <button onclick="directPrint()" style="
+                background-color: #2563eb; 
+                color: white; 
+                padding: 10px 20px; 
+                border: none; 
+                border-radius: 8px; 
+                cursor: pointer; 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                font-size: 16px; 
+                font-weight: bold;
+                width: 100%;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                🖨️ Direct Print
+            </button>
         """
         
-    st.markdown(pdf_display, unsafe_allow_html=True)
+        # Display the custom JS button in Streamlit
+    components.html(custom_print_button, height=60)
+    
