@@ -232,7 +232,7 @@ if generate_btn:
                         worksheet.write(excel_row, 2, row['Supplier No.'], data_format)
                         worksheet.write(excel_row, 3, row['Product Name'], data_format)
                         worksheet.write(excel_row, 4, row['Supplier Name'], data_format)
-                        worksheet.write(excel_row, 5, row['Purchase Mode'], data_format)
+                        worksheet.write(excel_row, 5, row['Payment'], data_format)
                         worksheet.write(excel_row, 7, row['Rate - Without Tax (P)'], currency_data_format)
                         worksheet.write(excel_row, 8, row['Serial Number'], data_format)
                         worksheet.write(excel_row, 9, str(row['Sales Invoice Date']), data_format)
