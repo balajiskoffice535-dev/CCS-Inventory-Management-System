@@ -63,7 +63,7 @@ with col1:
     # ✨ NEW PRODUCT NAME FIELD ✨
     product_name = st.text_input("Product Name *", placeholder="e.g., Dynabook Portage X40")
     
-    payment_type = st.selectbox("Payment Type", ["Cash", "Credit", "NEFT", "RTGS"])
+    payment_type = st.selectbox("Payment Type", ["Cash", "Credit", "NEFT", "RTGS", "Cheque"])
     new_pur_rate = st.number_input("Purchase (Rate - Without Tax) ₹ *", min_value=0.0, format="%.2f")
 
 with col2:
