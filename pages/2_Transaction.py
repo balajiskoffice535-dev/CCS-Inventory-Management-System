@@ -142,8 +142,9 @@ else:
     df = df.sort_values(by=sort_col_map[sort_by], ascending=(direction == "Ascending"))
 
     total_records = len(df)
-    total_purchase = df['Purchase'].sum() if 'Purchase' in df.columns else 0
-    total_sales = df['Sales'].sum() if 'Sales' in df.columns else 0
+    # ✨ THE FIX: Pointing to the exact column names and forcing math!
+    total_purchase = pd.to_numeric(df['Purchase (Rate - Without Tax)'], errors='coerce').sum() if 'Purchase (Rate - Without Tax)' in df.columns else 0
+    total_sales = pd.to_numeric(df['Sales (Rate - Without Tax)'], errors='coerce').sum() if 'Sales (Rate - Without Tax)' in df.columns else 0
     revenue = total_sales - total_purchase
 
     if view_type == "Unsold Stock (Available to Sell)":
