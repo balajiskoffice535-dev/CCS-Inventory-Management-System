@@ -154,7 +154,7 @@ if generate_btn:
             
             if report_type == "ALL TRANSACTIONS":
                  display_df['Product Name (Sold)'] = display_df['Product Name']
-                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
+                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
             elif report_type == "PURCHASE REPORT":
                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
             elif report_type == "SALES REPORT":
