@@ -558,19 +558,26 @@ if st.session_state.get('report_ready', False):
     # Encode the PDF
     # ✨ THE MISSING LINE: This actually generates the PDF in the computer's memory!
     # The modern way to generate the PDF in memory
-    pdf_bytes = bytes(pdf.output())
+    # ✨ THE ULTIMATE CLOUD-SAFE PDF GENERATOR ✨
+    try:
+            # Tries the standard Cloud method first
+        pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    except:
+            # Falls back to the newer modern method if needed
+        pdf_bytes = bytes(pdf.output())
+
         # Encode the PDF
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
         
-        # Using the <object> tag with a built-in error message!
+        # Using the <object> tag to bypass Chrome's blocker
     pdf_display = f"""
-        <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="800px">
-            <div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 10px;">
-                <h4>⚠️ Browser Blocked Preview</h4>
-                <p>Google Chrome's strict security settings are blocking the live preview.</p>
-                <p><b>Your PDF was successfully generated!</b> Please click the "Download PDF" button above to view it.</p>
-            </div>
-        </object>
-    """
+            <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="800px">
+                <div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 10px;">
+                    <h4>⚠️ Browser Blocked Preview</h4>
+                    <p>Google Chrome's strict security settings are blocking the live preview.</p>
+                    <p><b>Your PDF was successfully generated!</b> Please click the "Download PDF" button above to view it.</p>
+                </div>
+            </object>
+        """
         
     st.markdown(pdf_display, unsafe_allow_html=True)
