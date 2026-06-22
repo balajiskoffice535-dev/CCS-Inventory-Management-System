@@ -555,6 +555,25 @@ if st.session_state.get('report_ready', False):
     st.markdown("### 🖨️ Direct Print Preview (PDF)")
     st.info("Hover over the document below and click the Print icon in the top right corner.")
     
-    base64_pdf = base64.b64encode(st.session_state['pdf_bytes']).decode('utf-8')
-    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></embed>'
+    # Encode the PDF
+    # ✨ THE MISSING LINE: This actually generates the PDF in the computer's memory!
+    try:
+        pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    except:
+        pdf_bytes = bytes(pdf.output()) # Failsafe for newer FPDF versions
+
+        # Encode the PDF
+    base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+        
+        # Using the <object> tag with a built-in error message!
+    pdf_display = f"""
+        <object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="800px">
+            <div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 10px;">
+                <h4>⚠️ Browser Blocked Preview</h4>
+                <p>Google Chrome's strict security settings are blocking the live preview.</p>
+                <p><b>Your PDF was successfully generated!</b> Please click the "Download PDF" button above to view it.</p>
+            </div>
+        </object>
+    """
+        
     st.markdown(pdf_display, unsafe_allow_html=True)
