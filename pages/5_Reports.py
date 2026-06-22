@@ -557,11 +557,8 @@ if st.session_state.get('report_ready', False):
     
     # Encode the PDF
     # ✨ THE MISSING LINE: This actually generates the PDF in the computer's memory!
-    try:
-        pdf_bytes = pdf.output(dest="S").encode("latin-1")
-    except:
-        pdf_bytes = bytes(pdf.output()) # Failsafe for newer FPDF versions
-
+    # The modern way to generate the PDF in memory
+    pdf_bytes = bytes(pdf.output())
         # Encode the PDF
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
         
