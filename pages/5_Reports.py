@@ -107,7 +107,7 @@ if generate_btn:
                 s.supplier_number as "Supplier No.",
                 COALESCE(t.product_name, '-') as "Product Name",
                 s.supplier_name as "Supplier Name",
-                COALESCE(t.payment_type, '-') as "Purchase Mode",
+                COALESCE(t.payment_type, '-') as "Payment",
                 COUNT(t.serial_number) OVER(PARTITION BY t.purchase_date, s.supplier_number, t.product_name) as "Total Qty",
                 t.purchase_rate as "Rate - Without Tax (P)",
                 t.serial_number as "Serial Number",
