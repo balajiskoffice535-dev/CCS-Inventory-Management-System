@@ -72,5 +72,4 @@ if uploaded_file is not None:
             df[fill_cols] = df[fill_cols].ffill()
         
         st.subheader("👀 Data Preview (Headers Detected)")
-        st.dataframe(df.head(10), use_container_width=True)
-        st.write(f"**Total Valid Excel Rows Found:** {len(df)}")
+        st.dataframe
