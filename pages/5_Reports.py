@@ -556,5 +556,5 @@ if st.session_state.get('report_ready', False):
     st.info("Hover over the document below and click the Print icon in the top right corner.")
     
     base64_pdf = base64.b64encode(st.session_state['pdf_bytes']).decode('utf-8')
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
     st.markdown(pdf_display, unsafe_allow_html=True)
