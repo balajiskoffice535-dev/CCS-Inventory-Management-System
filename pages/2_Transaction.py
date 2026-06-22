@@ -61,13 +61,13 @@ with st.container():
         payment_type = st.selectbox("Payment Type", ["All", "Cash", "Credit", "NEFT", "RTGS"])
     with col2:
         date_field = st.selectbox("Date Field", ["Sales Date", "Purchase Date"])
-        sort_by = st.selectbox("Sort By", ["Created", "Sales Date", "Purchase Date", "Purchase Value", "Sales Value"])
+        # ✨ DEFAULT FIX: Set to Purchase Date so it matches Excel flow natively
+        sort_by = st.selectbox("Sort By", ["Purchase Date", "Sales Date", "Created", "Purchase Value", "Sales Value"])
     with col3:
-        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
         from_date = st.date_input("From", datetime.today() - timedelta(days=30), format="DD/MM/YYYY")
-        direction = st.selectbox("Direction", ["Descending", "Ascending"])
+        # ✨ DEFAULT FIX: Set to Ascending so it doesn't flip upside down
+        direction = st.selectbox("Direction", ["Ascending", "Descending"])
     with col4:
-        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
         to_date = st.date_input("To", datetime.today(), format="DD/MM/YYYY")
         st.markdown("<br>", unsafe_allow_html=True)
         apply_filters = st.button("Apply Filters", type="primary", use_container_width=True)
@@ -135,14 +135,17 @@ else:
 
     df = df[(df[date_col] >= pd_from_date) & (df[date_col] <= pd_to_date)]
     
+    # ✨ GROUPING FIX: Added Supplier No and Product Name as tie-breakers so Total Qty doesn't scramble!
     sort_col_map = {
-        "Created": "Created", "Sales Date": "Sales Date", "Purchase Date": "Purchase Date",
-        "Purchase Value": "Purchase", "Sales Value": "Sales"
+        "Created": ["Created"], 
+        "Sales Date": ["Sales Date", "Supplier No.", "Product Name"], 
+        "Purchase Date": ["Purchase Date", "Supplier No.", "Product Name"],
+        "Purchase Value": ["Purchase (Rate - Without Tax)"], 
+        "Sales Value": ["Sales (Rate - Without Tax)"]
     }
     df = df.sort_values(by=sort_col_map[sort_by], ascending=(direction == "Ascending"))
 
     total_records = len(df)
-    # ✨ THE FIX: Pointing to the exact column names and forcing math!
     total_purchase = pd.to_numeric(df['Purchase (Rate - Without Tax)'], errors='coerce').sum() if 'Purchase (Rate - Without Tax)' in df.columns else 0
     total_sales = pd.to_numeric(df['Sales (Rate - Without Tax)'], errors='coerce').sum() if 'Sales (Rate - Without Tax)' in df.columns else 0
     revenue = total_sales - total_purchase
@@ -165,7 +168,6 @@ else:
     # ==========================================
     for d_col in ["Sales Date", "Purchase Date", "Dispatch", "Paid On"]:
         if d_col in df.columns:
-            # Converts the ugly database timestamp into a clean dd/mm/yyyy string
             df[d_col] = pd.to_datetime(df[d_col], errors='coerce').dt.strftime('%d/%m/%Y').fillna("-").replace('NaT', '-')
 
     # ==========================================
@@ -175,10 +177,8 @@ else:
     
     display_df = df.copy()
     
-    # Mirror the Product Name for the Sales block
     display_df['Product Name (Sold)'] = display_df['Product Name']
     
-    # Clean, logical grouping: Purchase -> Serial No -> Sales
     display_cols = ["SL", "Purchase Date", "Supplier No.", "Supplier", "Product Name", "Total Qty", "Purchase (Rate - Without Tax)", "Payment", "Serial No", "Sales Date", "Invoice #", "Product Name (Sold)", "Customer", "Sales (Rate - Without Tax)", "Dispatch", "Paid On"]
     
     mask = (display_df['Purchase Date'] == display_df['Purchase Date'].shift()) & \
@@ -201,7 +201,6 @@ st.divider()
 st.subheader("🛠️ Manage Records (Edit / Delete)")
 st.write("Select a specific Serial Number below to update its details or remove it completely.")
 
-# ✨ THE FIX: Make the dropdown listen to the radio button at the top of the page!
 if view_type == "Unsold Stock (Available to Sell)":
     all_serials = run_query("SELECT serial_number FROM transactions WHERE sales_invoice_date IS NULL ORDER BY created_at DESC")
 else:
@@ -242,7 +241,6 @@ if selected_serial != "-- Select --":
                 
                 with ec1:
                     st.write("**📋 Purchase Details**")
-                    # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
                     new_pur_date = st.date_input("Purchase Date", value=txn['purchase_date'], format="DD/MM/YYYY")
                     new_sup_name = st.text_input("Supplier Name *", value=txn['supplier_name'] or "")
                     new_sup_num = st.text_input("Supplier Number *", value=txn['supplier_number'] or "")
@@ -257,17 +255,14 @@ if selected_serial != "-- Select --":
                 with ec2:
                     st.write("**🧾 Sales Details**")
                     new_cust_name = st.text_input("Customer Name", value=txn['customer_name'] or "")
-                    # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
                     new_inv_date = st.date_input("Sales Invoice Date", value=txn['sales_invoice_date'] if txn['sales_invoice_date'] else None, format="DD/MM/YYYY")
                     new_invoice = st.text_input("Invoice Number", value=txn['invoice_number'] or "")
                     new_sales_rate = st.number_input("Sales Rate (₹)", value=float(txn['sales_rate'] or 0.0), format="%.2f")
                     
                     dc1, dc2 = st.columns(2)
                     with dc1:
-                        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
                         new_dispatch = st.date_input("Dispatch Date", value=txn['date_of_dispatch'] if txn['date_of_dispatch'] else None, format="DD/MM/YYYY")
                     with dc2:
-                        # ✨ ADDED DD/MM/YYYY FORMAT HERE ✨
                         new_payment_date = st.date_input("Payment Date", value=txn['date_of_payment'] if txn['date_of_payment'] else None, format="DD/MM/YYYY")
 
                 new_notes = st.text_area("Additional Notes", value=txn['notes'] or "")
