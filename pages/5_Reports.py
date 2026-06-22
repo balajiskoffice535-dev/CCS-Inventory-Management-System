@@ -156,7 +156,7 @@ if generate_btn:
                  display_df['Product Name (Sold)'] = display_df['Product Name']
                  display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
             elif report_type == "PURCHASE REPORT":
-                display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
+                display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
             elif report_type == "SALES REPORT":
                 display_df = display_df[['SL', 'Serial Number', 'Purchase Date', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']]
 
@@ -196,14 +196,14 @@ if generate_btn:
                 if report_type == "ALL TRANSACTIONS":
                     worksheet.merge_range('A6:I6', 'PURCHASE REGISTER', purchase_head_format)
                     worksheet.merge_range('J6:N6', 'SALES INVOICE DETAILS', sales_head_format)
-                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']
+                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']
                     worksheet.set_column('A:A', 5); worksheet.set_column('B:C', 12); worksheet.set_column('D:E', 25)
                     worksheet.set_column('F:G', 10); worksheet.set_column('H:I', 15); worksheet.set_column('J:K', 15)
                     worksheet.set_column('L:M', 25); worksheet.set_column('N:N', 15)
                 
                 elif report_type == "PURCHASE REPORT":
                     worksheet.merge_range('A6:I6', 'PURCHASE REGISTER ONLY', purchase_head_format)
-                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Total Qty', 'Rate - Without Tax', 'Serial Number']
+                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax', 'Serial Number']
                     worksheet.set_column('A:A', 5); worksheet.set_column('B:C', 15); worksheet.set_column('D:E', 30); worksheet.set_column('F:F', 15)
                     worksheet.set_column('G:G', 10); worksheet.set_column('H:I', 20)
                 
@@ -246,7 +246,7 @@ if generate_btn:
                         worksheet.write(excel_row, 2, row['Supplier No.'], data_format)
                         worksheet.write(excel_row, 3, row['Product Name'], data_format)
                         worksheet.write(excel_row, 4, row['Supplier Name'], data_format)
-                        worksheet.write(excel_row, 5, row['Purchase Mode'], data_format)
+                        worksheet.write(excel_row, 5, row['Payment'], data_format)
                         worksheet.write(excel_row, 7, row['Rate - Without Tax (P)'], currency_data_format)
                         worksheet.write(excel_row, 8, row['Serial Number'], data_format)
 
@@ -487,6 +487,7 @@ if generate_btn:
             pdf.cell(50, 6, "Signature", align="C")
             # --------------------------------------------
             
+            # ✨ SAVING THE BYTES TO MEMORY ✨
             st.session_state['pdf_bytes'] = bytes(pdf.output())
             st.session_state['excel_buffer'] = buffer.getvalue()
             prefix = "All" if report_type == "ALL TRANSACTIONS" else "Purch" if report_type == "PURCHASE REPORT" else "Sales"
@@ -556,52 +557,47 @@ if st.session_state.get('report_ready', False):
     st.markdown("### 🖨️ Direct Print Preview (PDF)")
     st.info("Hover over the document below and click the Print icon in the top right corner.")
     
-    # ✨ THE ULTIMATE CLOUD-SAFE PDF GENERATOR ✨
-    try:
-            # Tries the standard Cloud method first
-        pdf_bytes = pdf.output(dest="S").encode("latin-1")
-    except:
-            # Falls back to the newer modern method if needed
-        pdf_bytes = bytes(pdf.output())
-
-        # Encode the PDF
+    # ✨ GRAB THE PDF BYTES DIRECTLY FROM MEMORY! ✨
+    pdf_bytes = st.session_state['pdf_bytes']
+    
+    # Encode the PDF
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
         
-        # ✨ THE DIRECT PRINT JAVASCRIPT HACK ✨
+    # ✨ THE DIRECT PRINT JAVASCRIPT HACK ✨
     custom_print_button = f"""
-            <script>
-                function directPrint() {{
-                    // Open a tiny invisible new window
-                    var printWindow = window.open('', '_blank');
-                    
-                    // Shove the PDF data into it
-                    printWindow.document.write('<html><body style="margin:0; padding:0;">');
-                    printWindow.document.write('<embed width="100%" height="100%" name="plugin" src="data:application/pdf;base64,{base64_pdf}" type="application/pdf">');
-                    printWindow.document.write('</body></html>');
-                    printWindow.document.close();
-                    
-                    // Tell the browser to open the print dialog after half a second
-                    setTimeout(function() {{
-                        printWindow.print();
-                    }}, 500); 
-                }}
-            </script>
-            
-            <button onclick="directPrint()" style="
-                background-color: #2563eb; 
-                color: white; 
-                padding: 10px 20px; 
-                border: none; 
-                border-radius: 8px; 
-                cursor: pointer; 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                font-size: 16px; 
-                font-weight: bold;
-                width: 100%;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                🖨️ Direct Print
-            </button>
-        """
+        <script>
+            function directPrint() {{
+                // Open a tiny invisible new window
+                var printWindow = window.open('', '_blank');
+                
+                // Shove the PDF data into it
+                printWindow.document.write('<html><body style="margin:0; padding:0;">');
+                printWindow.document.write('<embed width="100%" height="100%" name="plugin" src="data:application/pdf;base64,{base64_pdf}" type="application/pdf">');
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                
+                // Tell the browser to open the print dialog after half a second
+                setTimeout(function() {{
+                    printWindow.print();
+                }}, 500); 
+            }}
+        </script>
         
-        # Display the custom JS button in Streamlit
+        <button onclick="directPrint()" style="
+            background-color: #2563eb; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-size: 16px; 
+            font-weight: bold;
+            width: 100%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            🖨️ Direct Print
+        </button>
+    """
+        
+    # Display the custom JS button in Streamlit
     components.html(custom_print_button, height=60)
