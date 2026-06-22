@@ -123,15 +123,15 @@ if generate_btn:
         
         if report_type == "PURCHASE REPORT":
             # Shows absolutely everything sitting in inventory and sold
-            query = base_query + " ORDER BY t.purchase_date ASC, t.serial_number ASC"
+            query = base_query + " ORDER BY t.purchase_date ASC, t.id ASC"
             
         elif report_type == "SALES REPORT":
             # Shows only things we sold
-            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.serial_number ASC"
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.id ASC"
             
         else:
             # ✨ ALL TRANSACTIONS FIX: Hides unsold inventory so your Revenue is 100% accurate!
-            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.serial_number ASC"
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.id ASC"
         data = run_query(query, (start_date, end_date))
 
         if not data:
