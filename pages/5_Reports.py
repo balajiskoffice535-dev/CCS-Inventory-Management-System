@@ -12,6 +12,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+import streamlit.components.v1 as components
 
 # ==========================================
 # GMAIL EMAIL ENGINE
@@ -604,4 +605,3 @@ if st.session_state.get('report_ready', False):
         
         # Display the custom JS button in Streamlit
     components.html(custom_print_button, height=60)
-    
