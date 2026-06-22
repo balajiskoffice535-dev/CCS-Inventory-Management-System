@@ -406,7 +406,7 @@ if generate_btn:
                         print_wrapped_cell(col_w[2], str(row['Supplier No.']))
                         print_wrapped_cell(col_w[3], str(row['Product Name']), align="L")
                         print_wrapped_cell(col_w[4], str(row['Supplier Name']), align="L")
-                        print_wrapped_cell(col_w[5], str(row['Purchase Mode']))
+                        print_wrapped_cell(col_w[5], str(row['Payment']))
                         
                         qty_border = 'LR' 
                         if idx == start_idx: qty_border += 'T' 
@@ -427,7 +427,7 @@ if generate_btn:
                         print_wrapped_cell(col_w[2], str(row['Supplier No.']))
                         print_wrapped_cell(col_w[3], str(row['Product Name']), align="L")
                         print_wrapped_cell(col_w[4], str(row['Supplier Name']), align="L")
-                        print_wrapped_cell(col_w[5], str(row['Purchase Mode']))
+                        print_wrapped_cell(col_w[5], str(row['Payment']))
                         
                         qty_border = 'LR' 
                         if idx == start_idx: qty_border += 'T' 
