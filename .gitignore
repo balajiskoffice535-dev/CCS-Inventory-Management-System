@@ -1,0 +1,43 @@
+# =========================
+# 🛑 SECRETS & PASSWORDS
+# =========================
+.streamlit/secrets.toml
+.env
+*.pem
+*.key
+
+# =========================
+# 🐍 PYTHON & CACHE FILES
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# 📦 VIRTUAL ENVIRONMENTS
+# =========================
+venv/
+env/
+.venv/
+env.bak/
+venv.bak/
+
+# =========================
+# 💽 DATABASE FILES (Local backups)
+# =========================
+*.sqlite3
+*.db
+*.csv
+
+# =========================
+# 🖥️ OS SYSTEM FILES
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# 🛠️ IDE SETTINGS (VS Code, etc.)
+# =========================
+.vscode/
+.idea/
