@@ -799,7 +799,7 @@ if exec_data:
             total_purchase = cust_summary["Total_Purchase_Cost"].sum()
             total_revenue = cust_summary["Total_Revenue"].sum()
             total_gross_profit = cust_summary["Gross_Profit"].sum()
-            final_net_profit = total_gross_profit - delivery_charge
+            final_net_profit = total_gross_profit - float(delivery_charge)
 
                     # --- ON-SCREEN PREVIEW ---
             st.markdown(f"#### Preview for: **{selected_customer}**")
