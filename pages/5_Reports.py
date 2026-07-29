@@ -107,14 +107,15 @@ if generate_btn:
                 s.supplier_number as "Supplier No.",
                 COALESCE(t.product_name, '-') as "Product Name",
                 s.supplier_name as "Supplier Name",
-                COALESCE(t.payment_type, '-') as "Payment",
+                COALESCE(t.payment_type, '-') as "Purchase Mode",
                 COUNT(t.serial_number) OVER(PARTITION BY t.purchase_date, s.supplier_number, t.product_name) as "Total Qty",
                 t.purchase_rate as "Rate - Without Tax (P)",
                 t.serial_number as "Serial Number",
                 t.sales_invoice_date as "Sales Invoice Date",
                 COALESCE(t.invoice_number, '-') as "Invoice No.",
                 COALESCE(c.customer_name, 'Unsold') as "Customer Name",
-                COALESCE(t.sales_rate, 0) as "Rate - Without Tax (S)"
+                COALESCE(t.sales_rate, 0) as "Rate - Without Tax (S)",
+                t.payment_date as "Payment Date"
             FROM transactions t
             LEFT JOIN suppliers s ON t.supplier_id = s.id
             LEFT JOIN customers c ON t.customer_id = c.id
@@ -123,15 +124,15 @@ if generate_btn:
         
         if report_type == "PURCHASE REPORT":
             # Shows absolutely everything sitting in inventory and sold
-            query = base_query + " ORDER BY t.purchase_date ASC, s.supplier_number ASC, t.product_name ASC"
+            query = base_query + " ORDER BY t.purchase_date ASC, t.serial_number ASC"
             
         elif report_type == "SALES REPORT":
             # Shows only things we sold
-            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, s.supplier_number ASC, t.product_name ASC"
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.serial_number ASC"
             
         else:
             # ✨ ALL TRANSACTIONS FIX: Hides unsold inventory so your Revenue is 100% accurate!
-            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, s.supplier_number ASC, t.product_name ASC"
+            query = base_query + " AND t.sales_invoice_date IS NOT NULL ORDER BY t.purchase_date ASC, t.serial_number ASC"
         data = run_query(query, (start_date, end_date))
 
         if not data:
@@ -141,6 +142,8 @@ if generate_btn:
             df.insert(0, "SL", range(1, len(df) + 1))
             
             df["Purchase Date"] = pd.to_datetime(df["Purchase Date"]).dt.strftime('%d/%m/%Y')
+            df["Payment Date"] = pd.to_datetime(df["Payment Date"], errors='coerce').dt.strftime('%d/%m/%Y')
+            df["Payment Date"] = df["Payment Date"].fillna("-").replace("NaT", "-")
             df["Sales Invoice Date"] = pd.to_datetime(df["Sales Invoice Date"], errors='coerce').dt.strftime('%d/%m/%Y')
             df["Sales Invoice Date"] = df["Sales Invoice Date"].fillna("-").replace("NaT", "-")
             
@@ -154,9 +157,9 @@ if generate_btn:
             
             if report_type == "ALL TRANSACTIONS":
                  display_df['Product Name (Sold)'] = display_df['Product Name']
-                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
+                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
             elif report_type == "PURCHASE REPORT":
-                display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
+                display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
             elif report_type == "SALES REPORT":
                 display_df = display_df[['SL', 'Serial Number', 'Purchase Date', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']]
 
@@ -188,24 +191,24 @@ if generate_btn:
                 bold_currency_format = workbook.add_format({'num_format': '₹#,##0', 'bold': True, 'align': 'right'})
                 bold_right_format = workbook.add_format({'bold': True, 'align': 'right'})
                 
-                max_col = 'N' if report_type == "ALL TRANSACTIONS" else 'I' if report_type == "PURCHASE REPORT" else 'H'
+                max_col = 'O' if report_type == "ALL TRANSACTIONS" else 'J' if report_type == "PURCHASE REPORT" else 'H'
                 worksheet.merge_range(f'A1:{max_col}1', company_title, title_format)
                 worksheet.merge_range(f'A2:{max_col}2', f'Report Type: {report_type}', subtitle_format)
                 worksheet.merge_range(f'A4:{max_col}4', f'Generated: {datetime.now().strftime("%d-%m-%Y %H:%M")}', italic_format)
 
                 if report_type == "ALL TRANSACTIONS":
-                    worksheet.merge_range('A6:I6', 'PURCHASE REGISTER', purchase_head_format)
-                    worksheet.merge_range('J6:N6', 'SALES INVOICE DETAILS', sales_head_format)
-                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']
+                    worksheet.merge_range('A6:J6', 'PURCHASE REGISTER', purchase_head_format)
+                    worksheet.merge_range('K6:O6', 'SALES INVOICE DETAILS', sales_head_format)
+                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']
                     worksheet.set_column('A:A', 5); worksheet.set_column('B:C', 12); worksheet.set_column('D:E', 25)
-                    worksheet.set_column('F:G', 10); worksheet.set_column('H:I', 15); worksheet.set_column('J:K', 15)
-                    worksheet.set_column('L:M', 25); worksheet.set_column('N:N', 15)
+                    worksheet.set_column('F:G', 10); worksheet.set_column('H:H', 10); worksheet.set_column('I:J', 15); worksheet.set_column('K:L', 15)
+                    worksheet.set_column('M:N', 25); worksheet.set_column('O:O', 15)
                 
                 elif report_type == "PURCHASE REPORT":
-                    worksheet.merge_range('A6:I6', 'PURCHASE REGISTER ONLY', purchase_head_format)
-                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Total Qty', 'Rate - Without Tax', 'Serial Number']
-                    worksheet.set_column('A:A', 5); worksheet.set_column('B:C', 15); worksheet.set_column('D:E', 30); worksheet.set_column('F:F', 15)
-                    worksheet.set_column('G:G', 10); worksheet.set_column('H:I', 20)
+                    worksheet.merge_range('A6:J6', 'PURCHASE REGISTER ONLY', purchase_head_format)
+                    headers = ['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Payment Date', 'Total Qty', 'Rate - Without Tax', 'Serial Number']
+                    worksheet.set_column('A:A', 5); worksheet.set_column('B:C', 15); worksheet.set_column('D:E', 30); worksheet.set_column('F:G', 15)
+                    worksheet.set_column('H:H', 10); worksheet.set_column('I:J', 20)
                 
                 elif report_type == "SALES REPORT":
                     worksheet.merge_range('A6:H6', 'SALES INVOICE DETAILS ONLY', sales_head_format)
@@ -232,23 +235,25 @@ if generate_btn:
                         worksheet.write(excel_row, 2, row['Supplier No.'], data_format)
                         worksheet.write(excel_row, 3, row['Product Name'], data_format)
                         worksheet.write(excel_row, 4, row['Supplier Name'], data_format)
-                        worksheet.write(excel_row, 5, row['Payment'], data_format)
-                        worksheet.write(excel_row, 7, row['Rate - Without Tax (P)'], currency_data_format)
-                        worksheet.write(excel_row, 8, row['Serial Number'], data_format)
-                        worksheet.write(excel_row, 9, str(row['Sales Invoice Date']), data_format)
-                        worksheet.write(excel_row, 10, row['Invoice No.'], data_format)
-                        worksheet.write(excel_row, 11, row['Product Name'], data_format)
-                        worksheet.write(excel_row, 12, row['Customer Name'], data_format)
-                        worksheet.write(excel_row, 13, row['Rate - Without Tax (S)'], currency_data_format)
+                        worksheet.write(excel_row, 5, row['Purchase Mode'], data_format)
+                        worksheet.write(excel_row, 6, str(row['Payment Date']), data_format)
+                        worksheet.write(excel_row, 8, row['Rate - Without Tax (P)'], currency_data_format)
+                        worksheet.write(excel_row, 9, row['Serial Number'], data_format)
+                        worksheet.write(excel_row, 10, str(row['Sales Invoice Date']), data_format)
+                        worksheet.write(excel_row, 11, row['Invoice No.'], data_format)
+                        worksheet.write(excel_row, 12, row['Product Name'], data_format)
+                        worksheet.write(excel_row, 13, row['Customer Name'], data_format)
+                        worksheet.write(excel_row, 14, row['Rate - Without Tax (S)'], currency_data_format)
                     
                     elif report_type == "PURCHASE REPORT":
                         worksheet.write(excel_row, 1, str(row['Purchase Date']), data_format)
                         worksheet.write(excel_row, 2, row['Supplier No.'], data_format)
                         worksheet.write(excel_row, 3, row['Product Name'], data_format)
                         worksheet.write(excel_row, 4, row['Supplier Name'], data_format)
-                        worksheet.write(excel_row, 5, row['Payment'], data_format)
-                        worksheet.write(excel_row, 7, row['Rate - Without Tax (P)'], currency_data_format)
-                        worksheet.write(excel_row, 8, row['Serial Number'], data_format)
+                        worksheet.write(excel_row, 5, row['Purchase Mode'], data_format)
+                        worksheet.write(excel_row, 6, str(row['Payment Date']), data_format)
+                        worksheet.write(excel_row, 8, row['Rate - Without Tax (P)'], currency_data_format)
+                        worksheet.write(excel_row, 9, row['Serial Number'], data_format)
 
                     elif report_type == "SALES REPORT":
                         worksheet.write(excel_row, 1, row['Serial Number'], data_format)
@@ -265,29 +270,29 @@ if generate_btn:
                         end_row = 7 + end_idx
                         qty_val = df.iloc[start_idx]['Total Qty']
                         if start_row == end_row:
-                            worksheet.write(start_row, 6, qty_val, data_format)
+                            worksheet.write(start_row, 7, qty_val, data_format)
                         else:
-                            worksheet.merge_range(start_row, 6, end_row, 6, qty_val, data_format)
+                            worksheet.merge_range(start_row, 7, end_row, 7, qty_val, data_format)
 
                 last_row = 7 + len(df)
                 if report_type == "ALL TRANSACTIONS":
-                    worksheet.write(last_row + 2, 7, total_purchase, bold_currency_format)
-                    worksheet.write(last_row + 2, 13, total_sales, bold_currency_format)
-                    worksheet.write(last_row + 6, 12, "Total Qty:", bold_right_format)
-                    worksheet.write(last_row + 6, 13, total_qty, bold_right_format)
-                    worksheet.write(last_row + 7, 12, "Total Purchase Value:", bold_right_format)
-                    worksheet.write(last_row + 7, 13, total_purchase, bold_currency_format)
-                    worksheet.write(last_row + 8, 12, "Total Sales Value:", bold_right_format)
-                    worksheet.write(last_row + 8, 13, total_sales, bold_currency_format)
-                    worksheet.write(last_row + 9, 12, "Revenue:", bold_right_format)
-                    worksheet.write(last_row + 9, 13, revenue, bold_currency_format)
+                    worksheet.write(last_row + 2, 8, total_purchase, bold_currency_format)
+                    worksheet.write(last_row + 2, 14, total_sales, bold_currency_format)
+                    worksheet.write(last_row + 6, 13, "Total Qty:", bold_right_format)
+                    worksheet.write(last_row + 6, 14, total_qty, bold_right_format)
+                    worksheet.write(last_row + 7, 13, "Total Purchase Value:", bold_right_format)
+                    worksheet.write(last_row + 7, 14, total_purchase, bold_currency_format)
+                    worksheet.write(last_row + 8, 13, "Total Sales Value:", bold_right_format)
+                    worksheet.write(last_row + 8, 14, total_sales, bold_currency_format)
+                    worksheet.write(last_row + 9, 13, "Revenue:", bold_right_format)
+                    worksheet.write(last_row + 9, 14, revenue, bold_currency_format)
                     
                 elif report_type == "PURCHASE REPORT":
-                    worksheet.write(last_row + 2, 7, total_purchase, bold_currency_format)
-                    worksheet.write(last_row + 5, 6, "Total Qty:", bold_right_format)
-                    worksheet.write(last_row + 5, 7, total_qty, bold_right_format)
-                    worksheet.write(last_row + 6, 6, "Total Purchase Value:", bold_right_format)
-                    worksheet.write(last_row + 6, 7, total_purchase, bold_currency_format)
+                    worksheet.write(last_row + 2, 8, total_purchase, bold_currency_format)
+                    worksheet.write(last_row + 5, 7, "Total Qty:", bold_right_format)
+                    worksheet.write(last_row + 5, 8, total_qty, bold_right_format)
+                    worksheet.write(last_row + 6, 7, "Total Purchase Value:", bold_right_format)
+                    worksheet.write(last_row + 6, 8, total_purchase, bold_currency_format)
                     
                 elif report_type == "SALES REPORT":
                     worksheet.write(last_row + 2, 7, total_sales, bold_currency_format)
@@ -320,13 +325,13 @@ if generate_btn:
                     if report_type == "ALL TRANSACTIONS":
                         if self.page_no() == 1:
                             self.set_fill_color(37, 99, 235); self.set_text_color(255, 255, 255); self.set_font("helvetica", "B", 8)
-                            self.cell(162, 8, "PURCHASE REGISTER", border=1, align="C", fill=True)
+                            self.cell(164, 8, "PURCHASE REGISTER", border=1, align="C", fill=True)
                             self.set_fill_color(30, 58, 138)
-                            self.cell(123, 8, "SALES INVOICE DETAILS", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
+                            self.cell(121, 8, "SALES INVOICE DETAILS", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
 
                         self.set_fill_color(241, 245, 249); self.set_text_color(30, 41, 59); self.set_font("helvetica", "B", 6)
-                        col_w = [6, 16, 18, 28, 32, 8, 8, 24, 22, 16, 16, 28, 39, 24] 
-                        headers = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Qty', 'Rate - Without Tax', 'Serial No.', 'Sales Date', 'Inv No.', 'Product Name', 'Customer Name', 'Rate - Without Tax']
+                        col_w = [6, 16, 17, 26, 28, 8, 13, 8, 21, 21, 16, 16, 26, 37, 26] 
+                        headers = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Pay Date', 'Qty', 'Rate - Without Tax', 'Serial No.', 'Sales Date', 'Inv No.', 'Product Name', 'Customer Name', 'Rate - Without Tax']
                     
                     elif report_type == "PURCHASE REPORT":
                         if self.page_no() == 1:
@@ -334,8 +339,8 @@ if generate_btn:
                             self.cell(198, 8, "PURCHASE REGISTER", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
 
                         self.set_fill_color(241, 245, 249); self.set_text_color(30, 41, 59); self.set_font("helvetica", "B", 8)
-                        col_w = [8, 22, 25, 35, 40, 12, 10, 22, 24] 
-                        headers = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Qty', 'Rate - Without Tax', 'Serial No.']
+                        col_w = [8, 20, 22, 33, 35, 12, 16, 10, 20, 22] 
+                        headers = ['SL', 'Purch Date', 'Supp No.', 'Product Name', 'Supplier Name', 'Mode', 'Pay Date', 'Qty', 'Rate - Without Tax', 'Serial No.']
                         
                     elif report_type == "SALES REPORT":
                         if self.page_no() == 1:
@@ -370,9 +375,9 @@ if generate_btn:
             line_h = 3.5 
             
             if report_type == "ALL TRANSACTIONS":
-                col_w = [6, 16, 18, 28, 32, 8, 8, 24, 22, 16, 16, 28, 39, 24] 
+                col_w = [6, 16, 17, 26, 28, 8, 13, 8, 21, 21, 16, 16, 26, 37, 26] 
             elif report_type == "PURCHASE REPORT":
-                col_w = [8, 22, 25, 35, 40, 12, 10, 22, 24]
+                col_w = [8, 20, 22, 33, 35, 12, 16, 10, 20, 22]
             else:
                 col_w = [8, 25, 22, 22, 25, 35, 39, 22]
 
@@ -406,37 +411,39 @@ if generate_btn:
                         print_wrapped_cell(col_w[2], str(row['Supplier No.']))
                         print_wrapped_cell(col_w[3], str(row['Product Name']), align="L")
                         print_wrapped_cell(col_w[4], str(row['Supplier Name']), align="L")
-                        print_wrapped_cell(col_w[5], str(row['Payment']))
+                        print_wrapped_cell(col_w[5], str(row['Purchase Mode']))
+                        print_wrapped_cell(col_w[6], str(row['Payment Date'])[:10])
                         
                         qty_border = 'LR' 
                         if idx == start_idx: qty_border += 'T' 
                         if idx == end_idx:   qty_border += 'B' 
                         display_qty = qty_val if idx == mid_idx else ""
-                        print_wrapped_cell(col_w[6], display_qty, border=qty_border)
+                        print_wrapped_cell(col_w[7], display_qty, border=qty_border)
                         
-                        print_wrapped_cell(col_w[7], f"{row['Rate - Without Tax (P)']:,.0f}", align="R")
-                        print_wrapped_cell(col_w[8], str(row['Serial Number']))
-                        print_wrapped_cell(col_w[9], str(row['Sales Invoice Date'])[:10])
-                        print_wrapped_cell(col_w[10], str(row['Invoice No.']))
-                        print_wrapped_cell(col_w[11], str(row['Product Name']), align="L")
-                        print_wrapped_cell(col_w[12], str(row['Customer Name']), align="L")
-                        print_wrapped_cell(col_w[13], f"{row['Rate - Without Tax (S)']:,.0f}", align="R")
+                        print_wrapped_cell(col_w[8], f"{row['Rate - Without Tax (P)']:,.0f}", align="R")
+                        print_wrapped_cell(col_w[9], str(row['Serial Number']))
+                        print_wrapped_cell(col_w[10], str(row['Sales Invoice Date'])[:10])
+                        print_wrapped_cell(col_w[11], str(row['Invoice No.']))
+                        print_wrapped_cell(col_w[12], str(row['Product Name']), align="L")
+                        print_wrapped_cell(col_w[13], str(row['Customer Name']), align="L")
+                        print_wrapped_cell(col_w[14], f"{row['Rate - Without Tax (S)']:,.0f}", align="R")
 
                     elif report_type == "PURCHASE REPORT":
                         print_wrapped_cell(col_w[1], str(row['Purchase Date'])[:10])
                         print_wrapped_cell(col_w[2], str(row['Supplier No.']))
                         print_wrapped_cell(col_w[3], str(row['Product Name']), align="L")
                         print_wrapped_cell(col_w[4], str(row['Supplier Name']), align="L")
-                        print_wrapped_cell(col_w[5], str(row['Payment']))
+                        print_wrapped_cell(col_w[5], str(row['Purchase Mode']))
+                        print_wrapped_cell(col_w[6], str(row['Payment Date'])[:10])
                         
                         qty_border = 'LR' 
                         if idx == start_idx: qty_border += 'T' 
                         if idx == end_idx:   qty_border += 'B' 
                         display_qty = qty_val if idx == mid_idx else ""
-                        print_wrapped_cell(col_w[6], display_qty, border=qty_border)
+                        print_wrapped_cell(col_w[7], display_qty, border=qty_border)
                         
-                        print_wrapped_cell(col_w[7], f"{row['Rate - Without Tax (P)']:,.0f}", align="R")
-                        print_wrapped_cell(col_w[8], str(row['Serial Number']))
+                        print_wrapped_cell(col_w[8], f"{row['Rate - Without Tax (P)']:,.0f}", align="R")
+                        print_wrapped_cell(col_w[9], str(row['Serial Number']))
 
                     elif report_type == "SALES REPORT":
                         print_wrapped_cell(col_w[1], str(row['Serial Number']))
