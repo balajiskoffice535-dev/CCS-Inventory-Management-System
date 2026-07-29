@@ -612,132 +612,152 @@ if st.session_state.get('report_ready', False):
     # Display the custom JS button in Streamlit
     components.html(custom_print_button, height=60)
 
-        # ==========================================
+
+# ==========================================
         # ✨ NEW FEATURE: CURRENT STOCK & PROFIT REPORT (PDF) ✨
         # ==========================================
-st.markdown("---")
-st.subheader("📊 Executive Summary Report")
-st.write("Download a dedicated status report showing Current Stock, Products Sold, and Profit by Unique Product.")
+        st.markdown("---")
+        st.subheader("📊 Executive Summary Report")
+        st.write("Download a dedicated status report showing Current Stock, Products Sold, and Profit by Unique Product.")
 
-        # 1. Prepare Data for Current Report
-        # Filter for Sold vs Unsold from your main df
-sold_df = df[df["Sales Invoice Date"] != "-"].copy()
-unsold_df = df[df["Sales Invoice Date"] == "-"].copy()
+        # Fetch ALL data directly from the database for a true current snapshot
+        exec_query = """
+            SELECT 
+                COALESCE(t.product_name, '-') as "Product Name",
+                t.purchase_rate as "Rate - Without Tax (P)",
+                t.sales_invoice_date as "Sales Invoice Date",
+                COALESCE(t.sales_rate, 0) as "Rate - Without Tax (S)"
+            FROM transactions t
+        """
+        exec_data = run_query(exec_query)
 
-        # Group by Unique Product for Stock Status
-stock_summary = unsold_df.groupby("Product Name").agg(
-    In_Stock_Qty=("SL", "count"),
-    Total_Stock_Value=("Rate - Without Tax (P)", "sum")
-).reset_index()
-
-        # Group by Unique Product for Sales & Profit
-        # Calculate individual profit per sold row first
-sold_df["Profit"] = sold_df["Rate - Without Tax (S)"] - sold_df["Rate - Without Tax (P)"]
-sales_summary = sold_df.groupby("Product Name").agg(
-    Qty_Sold=("SL", "count"),
-    Total_Sales_Value=("Rate - Without Tax (S)", "sum"),
-    Total_Profit=("Profit", "sum")
-).reset_index()
-
-        # 2. Build PDF Class for Executive Summary
-class ExecutiveReportPDF(FPDF):
-    def header(self):
-        if self.page_no() == 1:
-            self.set_font("helvetica", "B", 16)
-            self.set_text_color(0, 51, 204)
-            self.cell(0, 10, company_title, new_x="LMARGIN", new_y="NEXT", align="C")
-            self.set_font("helvetica", "B", 12)
-            self.set_text_color(30, 41, 59)
-            self.cell(0, 8, "CURRENT STOCK & SALES PROFIT REPORT", new_x="LMARGIN", new_y="NEXT", align="C")
-            self.set_font("helvetica", "I", 9)
-            self.set_text_color(100, 116, 139)
-            self.cell(0, 6, f"Generated on: {datetime.now().strftime('%d-%m-%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
-            self.ln(6)
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("helvetica", "I", 8)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 10, f"Page {self.page_no()}", align="C")
-
-        # Generate Executive PDF in Portrait Mode
-exec_pdf = ExecutiveReportPDF(orientation='P', unit='mm', format='A4')
-exec_pdf.set_margins(10, 15, 10)
-exec_pdf.add_page()
-exec_pdf.set_auto_page_break(auto=True, margin=15)
-
-        # --- SECTION 1: CURRENT STOCK STATUS ---
-exec_pdf.set_font("helvetica", "B", 11)
-exec_pdf.set_text_color(0, 51, 204)
-exec_pdf.cell(0, 8, "1. CURRENT STOCK STATUS (UNSOLD INVENTORY)", new_x="LMARGIN", new_y="NEXT")
-        
-        # Header for Stock Table
-exec_pdf.set_font("helvetica", "B", 9)
-exec_pdf.set_fill_color(30, 58, 138); exec_pdf.set_text_color(255, 255, 255)
-exec_pdf.cell(10, 7, "SL", border=1, align="C", fill=True)
-exec_pdf.cell(100, 7, "Product Name", border=1, align="L", fill=True)
-exec_pdf.cell(35, 7, "In-Stock Qty", border=1, align="C", fill=True)
-exec_pdf.cell(45, 7, "Total Value (INR)", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
-
-exec_pdf.set_font("helvetica", "", 9)
-exec_pdf.set_text_color(30, 41, 59)
-if stock_summary.empty:
-    exec_pdf.cell(190, 7, "No unsold stock currently available.", border=1, align="C", new_x="LMARGIN", new_y="NEXT")
-else:
-    for idx, row in stock_summary.iterrows():
-        exec_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
-        exec_pdf.cell(100, 7, str(row["Product Name"])[:45], border=1, align="L")
-        exec_pdf.cell(35, 7, str(row["In_Stock_Qty"]), border=1, align="C")
-        exec_pdf.cell(45, 7, f"INR {row['Total_Stock_Value']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+        if exec_data:
+            exec_df = pd.DataFrame(exec_data)
             
-            # Stock Subtotal Row
-    exec_pdf.set_font("helvetica", "B", 9)
-    exec_pdf.cell(110, 7, "Total Current Stock:", border=1, align="R")
-    exec_pdf.cell(35, 7, str(stock_summary["In_Stock_Qty"].sum()), border=1, align="C")
-    exec_pdf.cell(45, 7, f"INR {stock_summary['Total_Stock_Value'].sum():,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+            # 1. Prepare Data for Current Report
+            # Unsold = where Sales Invoice Date is NULL or empty
+            unsold_df = exec_df[exec_df["Sales Invoice Date"].isna() | (exec_df["Sales Invoice Date"] == "") | (exec_df["Sales Invoice Date"] == "-")].copy()
+            sold_df = exec_df[~exec_df.index.isin(unsold_df.index)].copy()
 
-exec_pdf.ln(8)
+            # Group by Unique Product for Stock Status
+            if not unsold_df.empty:
+                stock_summary = unsold_df.groupby("Product Name").agg(
+                    In_Stock_Qty=("Product Name", "count"),
+                    Total_Stock_Value=("Rate - Without Tax (P)", "sum")
+                ).reset_index()
+            else:
+                stock_summary = pd.DataFrame(columns=["Product Name", "In_Stock_Qty", "Total_Stock_Value"])
 
-        # --- SECTION 2: PRODUCT SALES & PROFIT PERFORMANCE ---
-exec_pdf.set_font("helvetica", "B", 11)
-exec_pdf.set_text_color(0, 51, 204)
-exec_pdf.cell(0, 8, "2. SALES & PROFIT BY UNIQUE PRODUCT", new_x="LMARGIN", new_y="NEXT")
-        
-        # Header for Sales Table
-exec_pdf.set_font("helvetica", "B", 9)
-exec_pdf.set_fill_color(37, 99, 235); exec_pdf.set_text_color(255, 255, 255)
-exec_pdf.cell(10, 7, "SL", border=1, align="C", fill=True)
-exec_pdf.cell(70, 7, "Product Name", border=1, align="L", fill=True)
-exec_pdf.cell(25, 7, "Qty Sold", border=1, align="C", fill=True)
-exec_pdf.cell(42, 7, "Total Revenue (INR)", border=1, align="R", fill=True)
-exec_pdf.cell(43, 7, "Total Profit (INR)", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+            # Group by Unique Product for Sales & Profit
+            if not sold_df.empty:
+                sold_df["Profit"] = sold_df["Rate - Without Tax (S)"] - sold_df["Rate - Without Tax (P)"]
+                sales_summary = sold_df.groupby("Product Name").agg(
+                    Qty_Sold=("Product Name", "count"),
+                    Total_Sales_Value=("Rate - Without Tax (S)", "sum"),
+                    Total_Profit=("Profit", "sum")
+                ).reset_index()
+            else:
+                sales_summary = pd.DataFrame(columns=["Product Name", "Qty_Sold", "Total_Sales_Value", "Total_Profit"])
 
-exec_pdf.set_font("helvetica", "", 9)
-exec_pdf.set_text_color(30, 41, 59)
-if sales_summary.empty:
-    exec_pdf.cell(190, 7, "No products sold in the selected date range.", border=1, align="C", new_x="LMARGIN", new_y="NEXT")
-else:
-    for idx, row in sales_summary.iterrows():
-        exec_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
-        exec_pdf.cell(70, 7, str(row["Product Name"])[:32], border=1, align="L")
-        exec_pdf.cell(25, 7, str(row["Qty_Sold"]), border=1, align="C")
-        exec_pdf.cell(42, 7, f"INR {row['Total_Sales_Value']:,.2f}", border=1, align="R")
-        exec_pdf.cell(43, 7, f"INR {row['Total_Profit']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+            # 2. Build PDF Class for Executive Summary
+            class ExecutiveReportPDF(FPDF):
+                def header(self):
+                    if self.page_no() == 1:
+                        self.set_font("helvetica", "B", 16)
+                        self.set_text_color(0, 51, 204)
+                        self.cell(0, 10, company_title, new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.set_font("helvetica", "B", 12)
+                        self.set_text_color(30, 41, 59)
+                        self.cell(0, 8, "CURRENT STOCK & SALES PROFIT REPORT", new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.set_font("helvetica", "I", 9)
+                        self.set_text_color(100, 116, 139)
+                        self.cell(0, 6, f"Generated on: {datetime.now().strftime('%d-%m-%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.ln(6)
 
-            # Sales & Profit Subtotal Row
-    exec_pdf.set_font("helvetica", "B", 9)
-    exec_pdf.cell(80, 7, "Total Sales Performance:", border=1, align="R")
-    exec_pdf.cell(25, 7, str(sales_summary["Qty_Sold"].sum()), border=1, align="C")
-    exec_pdf.cell(42, 7, f"INR {sales_summary['Total_Sales_Value'].sum():,.2f}", border=1, align="R")
-    exec_pdf.cell(43, 7, f"INR {sales_summary['Total_Profit'].sum():,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font("helvetica", "I", 8)
+                    self.set_text_color(150, 150, 150)
+                    self.cell(0, 10, f"Page {self.page_no()}", align="C")
 
-        # 3. Output as Download Button
-exec_pdf_bytes = bytes(exec_pdf.output())
-st.download_button(
-    label="📄 Download Current Status & Profit Report (PDF)",
-    data=exec_pdf_bytes,
-    file_name=f"Current_Stock_Profit_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
-    mime="application/pdf",
-    type="primary",
-    use_container_width=True
-)
+            # Generate Executive PDF in Portrait Mode
+            exec_pdf = ExecutiveReportPDF(orientation='P', unit='mm', format='A4')
+            exec_pdf.set_margins(10, 15, 10)
+            exec_pdf.add_page()
+            exec_pdf.set_auto_page_break(auto=True, margin=15)
+
+            # --- SECTION 1: CURRENT STOCK STATUS ---
+            exec_pdf.set_font("helvetica", "B", 11)
+            exec_pdf.set_text_color(0, 51, 204)
+            exec_pdf.cell(0, 8, "1. CURRENT STOCK STATUS (UNSOLD INVENTORY)", new_x="LMARGIN", new_y="NEXT")
+            
+            # Header for Stock Table
+            exec_pdf.set_font("helvetica", "B", 9)
+            exec_pdf.set_fill_color(30, 58, 138); exec_pdf.set_text_color(255, 255, 255)
+            exec_pdf.cell(10, 7, "SL", border=1, align="C", fill=True)
+            exec_pdf.cell(100, 7, "Product Name", border=1, align="L", fill=True)
+            exec_pdf.cell(35, 7, "In-Stock Qty", border=1, align="C", fill=True)
+            exec_pdf.cell(45, 7, "Total Value (INR)", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+
+            exec_pdf.set_font("helvetica", "", 9)
+            exec_pdf.set_text_color(30, 41, 59)
+            if stock_summary.empty:
+                exec_pdf.cell(190, 7, "No unsold stock currently available.", border=1, align="C", new_x="LMARGIN", new_y="NEXT")
+            else:
+                for idx, row in stock_summary.iterrows():
+                    exec_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
+                    exec_pdf.cell(100, 7, str(row["Product Name"])[:45], border=1, align="L")
+                    exec_pdf.cell(35, 7, str(row["In_Stock_Qty"]), border=1, align="C")
+                    exec_pdf.cell(45, 7, f"INR {row['Total_Stock_Value']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+                
+                # Stock Subtotal Row
+                exec_pdf.set_font("helvetica", "B", 9)
+                exec_pdf.cell(110, 7, "Total Current Stock:", border=1, align="R")
+                exec_pdf.cell(35, 7, str(stock_summary["In_Stock_Qty"].sum()), border=1, align="C")
+                exec_pdf.cell(45, 7, f"INR {stock_summary['Total_Stock_Value'].sum():,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+
+            exec_pdf.ln(8)
+
+            # --- SECTION 2: PRODUCT SALES & PROFIT PERFORMANCE ---
+            exec_pdf.set_font("helvetica", "B", 11)
+            exec_pdf.set_text_color(0, 51, 204)
+            exec_pdf.cell(0, 8, "2. SALES & PROFIT BY UNIQUE PRODUCT", new_x="LMARGIN", new_y="NEXT")
+            
+            # Header for Sales Table
+            exec_pdf.set_font("helvetica", "B", 9)
+            exec_pdf.set_fill_color(37, 99, 235); exec_pdf.set_text_color(255, 255, 255)
+            exec_pdf.cell(10, 7, "SL", border=1, align="C", fill=True)
+            exec_pdf.cell(70, 7, "Product Name", border=1, align="L", fill=True)
+            exec_pdf.cell(25, 7, "Qty Sold", border=1, align="C", fill=True)
+            exec_pdf.cell(42, 7, "Total Revenue (INR)", border=1, align="R", fill=True)
+            exec_pdf.cell(43, 7, "Total Profit (INR)", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+
+            exec_pdf.set_font("helvetica", "", 9)
+            exec_pdf.set_text_color(30, 41, 59)
+            if sales_summary.empty:
+                exec_pdf.cell(190, 7, "No products sold in the database.", border=1, align="C", new_x="LMARGIN", new_y="NEXT")
+            else:
+                for idx, row in sales_summary.iterrows():
+                    exec_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
+                    exec_pdf.cell(70, 7, str(row["Product Name"])[:32], border=1, align="L")
+                    exec_pdf.cell(25, 7, str(row["Qty_Sold"]), border=1, align="C")
+                    exec_pdf.cell(42, 7, f"INR {row['Total_Sales_Value']:,.2f}", border=1, align="R")
+                    exec_pdf.cell(43, 7, f"INR {row['Total_Profit']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+
+                # Sales & Profit Subtotal Row
+                exec_pdf.set_font("helvetica", "B", 9)
+                exec_pdf.cell(80, 7, "Total Sales Performance:", border=1, align="R")
+                exec_pdf.cell(25, 7, str(sales_summary["Qty_Sold"].sum()), border=1, align="C")
+                exec_pdf.cell(42, 7, f"INR {sales_summary['Total_Sales_Value'].sum():,.2f}", border=1, align="R")
+                exec_pdf.cell(43, 7, f"INR {sales_summary['Total_Profit'].sum():,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+
+            # 3. Output as Download Button
+            exec_pdf_bytes = bytes(exec_pdf.output())
+            st.download_button(
+                label="📄 Download Current Status & Profit Report (PDF)",
+                data=exec_pdf_bytes,
+                file_name=f"Current_Stock_Profit_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                type="primary",
+                use_container_width=True
+            )
