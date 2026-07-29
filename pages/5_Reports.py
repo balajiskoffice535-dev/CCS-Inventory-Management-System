@@ -764,140 +764,140 @@ if exec_data:
             # =========================================================
             # MODE 2: CUSTOMER-WISE PROFITABILITY REPORT (+ DELIVERY CHARGE)
             # =========================================================
-            else:
-                customer_sales_df = exec_df[
-                    (exec_df["Sales Invoice Date"].notna()) &
-                    (exec_df["Sales Invoice Date"] != "") &
-                    (exec_df["Sales Invoice Date"] != "-") &
-                    (exec_df["Customer Name"] != "Unsold")
-                ].copy()
+    else:
+        customer_sales_df = exec_df[
+            (exec_df["Sales Invoice Date"].notna()) &
+            (exec_df["Sales Invoice Date"] != "") &
+            (exec_df["Sales Invoice Date"] != "-") &
+            (exec_df["Customer Name"] != "Unsold")
+        ].copy()
 
-                all_customers = sorted(customer_sales_df["Customer Name"].unique().tolist())
+        all_customers = sorted(customer_sales_df["Customer Name"].unique().tolist())
 
-                if not all_customers:
-                    st.warning("No sales transactions associated with a customer were found.")
-                else:
-                    col_cust, col_deliv = st.columns(2)
-                    with col_cust:
-                        selected_customer = st.selectbox("Select Customer:", all_customers)
-                    with col_deliv:
-                        delivery_charge = st.number_input("Delivery / Logistics Expense (₹):", min_value=0.0, value=0.0, step=100.0, format="%.2f")
+        if not all_customers:
+            st.warning("No sales transactions associated with a customer were found.")
+        else:
+            col_cust, col_deliv = st.columns(2)
+            with col_cust:
+                selected_customer = st.selectbox("Select Customer:", all_customers)
+            with col_deliv:
+                delivery_charge = st.number_input("Delivery / Logistics Expense (₹):", min_value=0.0, value=0.0, step=100.0, format="%.2f")
 
                     # Filter for selected customer
-                    cust_df = customer_sales_df[customer_sales_df["Customer Name"] == selected_customer].copy()
-                    cust_df["Gross Profit"] = cust_df["Rate - Without Tax (S)"] - cust_df["Rate - Without Tax (P)"]
+            cust_df = customer_sales_df[customer_sales_df["Customer Name"] == selected_customer].copy()
+            cust_df["Gross Profit"] = cust_df["Rate - Without Tax (S)"] - cust_df["Rate - Without Tax (P)"]
 
                     # Group by Product AND Supplier
-                    cust_summary = cust_df.groupby(["Product Name", "Supplier Name"]).agg(
-                        Qty_Sold=("Product Name", "count"),
-                        Total_Purchase_Cost=("Rate - Without Tax (P)", "sum"),
-                        Total_Revenue=("Rate - Without Tax (S)", "sum"),
-                        Gross_Profit=("Gross Profit", "sum")
-                    ).reset_index()
+            cust_summary = cust_df.groupby(["Product Name", "Supplier Name"]).agg(
+                Qty_Sold=("Product Name", "count"),
+                Total_Purchase_Cost=("Rate - Without Tax (P)", "sum"),
+                Total_Revenue=("Rate - Without Tax (S)", "sum"),
+                Gross_Profit=("Gross Profit", "sum")
+            ).reset_index()
 
-                    total_qty = cust_summary["Qty_Sold"].sum()
-                    total_purchase = cust_summary["Total_Purchase_Cost"].sum()
-                    total_revenue = cust_summary["Total_Revenue"].sum()
-                    total_gross_profit = cust_summary["Gross_Profit"].sum()
-                    final_net_profit = total_gross_profit - delivery_charge
+            total_qty = cust_summary["Qty_Sold"].sum()
+            total_purchase = cust_summary["Total_Purchase_Cost"].sum()
+            total_revenue = cust_summary["Total_Revenue"].sum()
+            total_gross_profit = cust_summary["Gross_Profit"].sum()
+            final_net_profit = total_gross_profit - delivery_charge
 
                     # --- ON-SCREEN PREVIEW ---
-                    st.markdown(f"#### Preview for: **{selected_customer}**")
-                    preview_df = cust_summary.copy()
-                    preview_df.index = range(1, len(preview_df) + 1)
-                    preview_df.index.name = "SL"
-                    st.dataframe(preview_df, use_container_width=True)
+            st.markdown(f"#### Preview for: **{selected_customer}**")
+            preview_df = cust_summary.copy()
+            preview_df.index = range(1, len(preview_df) + 1)
+            preview_df.index.name = "SL"
+            st.dataframe(preview_df, use_container_width=True)
 
                     # Display Metrics Box
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Total Qty Sold", f"{total_qty}")
-                    m2.metric("Total Revenue", f"₹ {total_revenue:,.2f}")
-                    m3.metric("Gross Profit", f"₹ {total_gross_profit:,.2f}")
-                    m4.metric("Net Profit (After Delivery)", f"₹ {final_net_profit:,.2f}", delta=f"- ₹{delivery_charge:,.2f} Shipping" if delivery_charge > 0 else None)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Qty Sold", f"{total_qty}")
+            m2.metric("Total Revenue", f"₹ {total_revenue:,.2f}")
+            m3.metric("Gross Profit", f"₹ {total_gross_profit:,.2f}")
+            m4.metric("Net Profit (After Delivery)", f"₹ {final_net_profit:,.2f}", delta=f"- ₹{delivery_charge:,.2f} Shipping" if delivery_charge > 0 else None)
 
                     # --- GENERATE CUSTOMER-WISE PDF ---
-                    class CustomerReportPDF(FPDF):
-                        def header(self):
-                            if self.page_no() == 1:
-                                self.set_font("helvetica", "B", 16)
-                                self.set_text_color(0, 51, 204)
-                                self.cell(0, 10, company_title, new_x="LMARGIN", new_y="NEXT", align="C")
-                                self.set_font("helvetica", "B", 12)
-                                self.set_text_color(30, 41, 59)
-                                self.cell(0, 8, "CUSTOMER-WISE SALES & PROFITABILITY REPORT", new_x="LMARGIN", new_y="NEXT", align="C")
-                                self.set_font("helvetica", "I", 9)
-                                self.set_text_color(100, 116, 139)
-                                self.cell(0, 6, f"Customer: {selected_customer} | Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
-                                self.ln(6)
+            class CustomerReportPDF(FPDF):
+                def header(self):
+                    if self.page_no() == 1:
+                        self.set_font("helvetica", "B", 16)
+                        self.set_text_color(0, 51, 204)
+                        self.cell(0, 10, company_title, new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.set_font("helvetica", "B", 12)
+                        self.set_text_color(30, 41, 59)
+                        self.cell(0, 8, "CUSTOMER-WISE SALES & PROFITABILITY REPORT", new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.set_font("helvetica", "I", 9)
+                        self.set_text_color(100, 116, 139)
+                        self.cell(0, 6, f"Customer: {selected_customer} | Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}", new_x="LMARGIN", new_y="NEXT", align="C")
+                        self.ln(6)
 
-                        def footer(self):
-                            self.set_y(-15)
-                            self.set_font("helvetica", "I", 8)
-                            self.set_text_color(150, 150, 150)
-                            self.cell(0, 10, f"Page {self.page_no()}", align="C")
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font("helvetica", "I", 8)
+                    self.set_text_color(150, 150, 150)
+                    self.cell(0, 10, f"Page {self.page_no()}", align="C")
 
                     # Use Landscape mode so Supplier Name and all financials fit nicely
-                    cust_pdf = CustomerReportPDF(orientation='L', unit='mm', format='A4')
-                    cust_pdf.set_margins(10, 15, 10)
-                    cust_pdf.add_page()
-                    cust_pdf.set_auto_page_break(auto=True, margin=15)
+            cust_pdf = CustomerReportPDF(orientation='L', unit='mm', format='A4')
+            cust_pdf.set_margins(10, 15, 10)
+            cust_pdf.add_page()
+            cust_pdf.set_auto_page_break(auto=True, margin=15)
 
                     # Table Header
-                    cust_pdf.set_font("helvetica", "B", 9)
-                    cust_pdf.set_fill_color(30, 58, 138); cust_pdf.set_text_color(255, 255, 255)
-                    cust_pdf.cell(10, 8, "SL", border=1, align="C", fill=True)
-                    cust_pdf.cell(80, 8, "Product Name", border=1, align="L", fill=True)
-                    cust_pdf.cell(60, 8, "Bought From (Supplier)", border=1, align="L", fill=True)
-                    cust_pdf.cell(20, 8, "Qty", border=1, align="C", fill=True)
-                    cust_pdf.cell(35, 8, "Purchase Cost", border=1, align="R", fill=True)
-                    cust_pdf.cell(35, 8, "Revenue (Billed)", border=1, align="R", fill=True)
-                    cust_pdf.cell(37, 8, "Gross Profit", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.set_font("helvetica", "B", 9)
+            cust_pdf.set_fill_color(30, 58, 138); cust_pdf.set_text_color(255, 255, 255)
+            cust_pdf.cell(10, 8, "SL", border=1, align="C", fill=True)
+            cust_pdf.cell(80, 8, "Product Name", border=1, align="L", fill=True)
+            cust_pdf.cell(60, 8, "Bought From (Supplier)", border=1, align="L", fill=True)
+            cust_pdf.cell(20, 8, "Qty", border=1, align="C", fill=True)
+            cust_pdf.cell(35, 8, "Purchase Cost", border=1, align="R", fill=True)
+            cust_pdf.cell(35, 8, "Revenue (Billed)", border=1, align="R", fill=True)
+            cust_pdf.cell(37, 8, "Gross Profit", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
 
                     # Table Rows
-                    cust_pdf.set_font("helvetica", "", 9)
-                    cust_pdf.set_text_color(30, 41, 59)
-                    for idx, row in cust_summary.iterrows():
-                        cust_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
-                        cust_pdf.cell(80, 7, str(row["Product Name"])[:38], border=1, align="L")
-                        cust_pdf.cell(60, 7, str(row["Supplier Name"])[:28], border=1, align="L")
-                        cust_pdf.cell(20, 7, str(row["Qty_Sold"]), border=1, align="C")
-                        cust_pdf.cell(35, 7, f"INR {row['Total_Purchase_Cost']:,.2f}", border=1, align="R")
-                        cust_pdf.cell(35, 7, f"INR {row['Total_Revenue']:,.2f}", border=1, align="R")
-                        cust_pdf.cell(37, 7, f"INR {row['Gross_Profit']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.set_font("helvetica", "", 9)
+            cust_pdf.set_text_color(30, 41, 59)
+            for idx, row in cust_summary.iterrows():
+                cust_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
+                cust_pdf.cell(80, 7, str(row["Product Name"])[:38], border=1, align="L")
+                cust_pdf.cell(60, 7, str(row["Supplier Name"])[:28], border=1, align="L")
+                cust_pdf.cell(20, 7, str(row["Qty_Sold"]), border=1, align="C")
+                cust_pdf.cell(35, 7, f"INR {row['Total_Purchase_Cost']:,.2f}", border=1, align="R")
+                cust_pdf.cell(35, 7, f"INR {row['Total_Revenue']:,.2f}", border=1, align="R")
+                cust_pdf.cell(37, 7, f"INR {row['Gross_Profit']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
                     # Summary Totals Block
-                    cust_pdf.set_font("helvetica", "B", 9)
-                    cust_pdf.cell(150, 7, "Subtotal (Gross Performance):", border=1, align="R")
-                    cust_pdf.cell(20, 7, str(total_qty), border=1, align="C")
-                    cust_pdf.cell(35, 7, f"INR {total_purchase:,.2f}", border=1, align="R")
-                    cust_pdf.cell(35, 7, f"INR {total_revenue:,.2f}", border=1, align="R")
-                    cust_pdf.cell(37, 7, f"INR {total_gross_profit:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.set_font("helvetica", "B", 9)
+            cust_pdf.cell(150, 7, "Subtotal (Gross Performance):", border=1, align="R")
+            cust_pdf.cell(20, 7, str(total_qty), border=1, align="C")
+            cust_pdf.cell(35, 7, f"INR {total_purchase:,.2f}", border=1, align="R")
+            cust_pdf.cell(35, 7, f"INR {total_revenue:,.2f}", border=1, align="R")
+            cust_pdf.cell(37, 7, f"INR {total_gross_profit:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
-                    cust_pdf.ln(4)
+            cust_pdf.ln(4)
                     
                     # Deductions Box (Right aligned for clean executive look)
-                    cust_pdf.set_x(170)
-                    cust_pdf.set_fill_color(241, 245, 249)
-                    cust_pdf.cell(70, 7, "Gross Profit Total:", border=1, align="L", fill=True)
-                    cust_pdf.cell(37, 7, f"INR {total_gross_profit:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.set_x(170)
+            cust_pdf.set_fill_color(241, 245, 249)
+            cust_pdf.cell(70, 7, "Gross Profit Total:", border=1, align="L", fill=True)
+            cust_pdf.cell(37, 7, f"INR {total_gross_profit:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
                     
-                    cust_pdf.set_x(170)
-                    cust_pdf.cell(70, 7, "Less: Delivery / Logistics Expense:", border=1, align="L", fill=True)
-                    cust_pdf.cell(37, 7, f"- INR {delivery_charge:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.set_x(170)
+            cust_pdf.cell(70, 7, "Less: Delivery / Logistics Expense:", border=1, align="L", fill=True)
+            cust_pdf.cell(37, 7, f"- INR {delivery_charge:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
                     
                     # Highlight Net Profit
-                    cust_pdf.set_x(170)
-                    cust_pdf.set_fill_color(0, 51, 204); cust_pdf.set_text_color(255, 255, 255)
-                    cust_pdf.set_font("helvetica", "B", 10)
-                    cust_pdf.cell(70, 8, "NET PROFIT (After Delivery):", border=1, align="L", fill=True)
-                    cust_pdf.cell(37, 8, f"INR {final_net_profit:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.set_x(170)
+            cust_pdf.set_fill_color(0, 51, 204); cust_pdf.set_text_color(255, 255, 255)
+            cust_pdf.set_font("helvetica", "B", 10)
+            cust_pdf.cell(70, 8, "NET PROFIT (After Delivery):", border=1, align="L", fill=True)
+            cust_pdf.cell(37, 8, f"INR {final_net_profit:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
 
                     # Download Button
-                    st.download_button(
-                        label=f"📄 Download Report for {selected_customer} (PDF)",
-                        data=bytes(cust_pdf.output()),
-                        file_name=f"Profit_Report_{selected_customer.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
-                        mime="application/pdf",
-                        type="primary",
-                        use_container_width=True
-                    )
+            st.download_button(
+                label=f"📄 Download Report for {selected_customer} (PDF)",
+                data=bytes(cust_pdf.output()),
+                file_name=f"Profit_Report_{selected_customer.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                type="primary",
+                use_container_width=True
+            )
