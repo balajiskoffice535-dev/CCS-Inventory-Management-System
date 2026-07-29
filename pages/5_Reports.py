@@ -721,7 +721,7 @@ if exec_data:
             # --- SECTION 2: PRODUCT SALES & PROFIT PERFORMANCE ---
     exec_pdf.set_font("helvetica", "B", 11)
     exec_pdf.set_text_color(0, 51, 204)
-    exec_pdf.cell(0, 8, "2. SALES & PROFIT BY UNIQUE PRODUCT", new_x="LMARGIN", new_y="NEXT")
+    exec_pdf.cell(0, 8, "2. SALES & PROFIT", new_x="LMARGIN", new_y="NEXT")
             
             # Header for Sales Table
     exec_pdf.set_font("helvetica", "B", 9)
