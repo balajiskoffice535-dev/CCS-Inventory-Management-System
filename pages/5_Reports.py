@@ -157,12 +157,12 @@ if generate_btn:
             
             if report_type == "ALL TRANSACTIONS":
                  display_df['Product Name (Sold)'] = display_df['Product Name']
-                 # Look here! Added 'Payment Date' right after 'Payment' (or 'Purchase Mode')
-                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
+                 # Changed 'Payment' to 'Purchase Mode' below:
+                 display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number', 'Sales Invoice Date', 'Invoice No.', 'Product Name (Sold)', 'Customer Name', 'Rate - Without Tax (S)']]
             
             elif report_type == "PURCHASE REPORT":
-                # Added 'Payment Date' here too!
-                display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Payment', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
+                # Changed 'Payment' to 'Purchase Mode' below:
+                display_df = display_df[['SL', 'Purchase Date', 'Supplier No.', 'Product Name', 'Supplier Name', 'Purchase Mode', 'Payment Date', 'Total Qty', 'Rate - Without Tax (P)', 'Serial Number']]
             
             elif report_type == "SALES REPORT":
                 display_df = display_df[['SL', 'Serial Number', 'Purchase Date', 'Sales Invoice Date', 'Invoice No.', 'Product Name', 'Customer Name', 'Rate - Without Tax (S)']]
