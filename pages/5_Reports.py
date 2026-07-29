@@ -785,6 +785,10 @@ if exec_data:
 
                     # Filter for selected customer
             cust_df = customer_sales_df[customer_sales_df["Customer Name"] == selected_customer].copy()
+                    
+                    # 100% BULLETPROOF NUMERIC CONVERSION (Kills the TypeError forever)
+            cust_df["Rate - Without Tax (S)"] = pd.to_numeric(cust_df["Rate - Without Tax (S)"], errors="coerce").fillna(0.0)
+            cust_df["Rate - Without Tax (P)"] = pd.to_numeric(cust_df["Rate - Without Tax (P)"], errors="coerce").fillna(0.0)
             cust_df["Gross Profit"] = cust_df["Rate - Without Tax (S)"] - cust_df["Rate - Without Tax (P)"]
 
                     # Group by Product AND Supplier
@@ -795,10 +799,11 @@ if exec_data:
                 Gross_Profit=("Gross Profit", "sum")
             ).reset_index()
 
-            total_qty = cust_summary["Qty_Sold"].sum()
-            total_purchase = cust_summary["Total_Purchase_Cost"].sum()
-            total_revenue = cust_summary["Total_Revenue"].sum()
-            total_gross_profit = cust_summary["Gross_Profit"].sum()
+                    # Convert every single total to a pure Python float
+            total_qty = int(cust_summary["Qty_Sold"].sum())
+            total_purchase = float(cust_summary["Total_Purchase_Cost"].sum())
+            total_revenue = float(cust_summary["Total_Revenue"].sum())
+            total_gross_profit = float(cust_summary["Gross_Profit"].sum())
             final_net_profit = total_gross_profit - float(delivery_charge)
 
                     # --- ON-SCREEN PREVIEW ---
@@ -813,7 +818,7 @@ if exec_data:
             m1.metric("Total Qty Sold", f"{total_qty}")
             m2.metric("Total Revenue", f"₹ {total_revenue:,.2f}")
             m3.metric("Gross Profit", f"₹ {total_gross_profit:,.2f}")
-            m4.metric("Net Profit (After Delivery)", f"₹ {final_net_profit:,.2f}", delta=f"- ₹{delivery_charge:,.2f} Shipping" if delivery_charge > 0 else None)
+            m4.metric("Net Profit (After Delivery)", f"₹ {final_net_profit:,.2f}", delta=f"- ₹{float(delivery_charge):,.2f} Shipping" if delivery_charge > 0 else None)
 
                     # --- GENERATE CUSTOMER-WISE PDF ---
             class CustomerReportPDF(FPDF):
@@ -860,10 +865,10 @@ if exec_data:
                 cust_pdf.cell(10, 7, str(idx + 1), border=1, align="C")
                 cust_pdf.cell(80, 7, str(row["Product Name"])[:38], border=1, align="L")
                 cust_pdf.cell(60, 7, str(row["Supplier Name"])[:28], border=1, align="L")
-                cust_pdf.cell(20, 7, str(row["Qty_Sold"]), border=1, align="C")
-                cust_pdf.cell(35, 7, f"INR {row['Total_Purchase_Cost']:,.2f}", border=1, align="R")
-                cust_pdf.cell(35, 7, f"INR {row['Total_Revenue']:,.2f}", border=1, align="R")
-                cust_pdf.cell(37, 7, f"INR {row['Gross_Profit']:,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+                cust_pdf.cell(20, 7, str(int(row["Qty_Sold"])), border=1, align="C")
+                cust_pdf.cell(35, 7, f"INR {float(row['Total_Purchase_Cost']):,.2f}", border=1, align="R")
+                cust_pdf.cell(35, 7, f"INR {float(row['Total_Revenue']):,.2f}", border=1, align="R")
+                cust_pdf.cell(37, 7, f"INR {float(row['Gross_Profit']):,.2f}", border=1, align="R", new_x="LMARGIN", new_y="NEXT")
 
                     # Summary Totals Block
             cust_pdf.set_font("helvetica", "B", 9)
@@ -883,7 +888,7 @@ if exec_data:
                     
             cust_pdf.set_x(170)
             cust_pdf.cell(70, 7, "Less: Delivery / Logistics Expense:", border=1, align="L", fill=True)
-            cust_pdf.cell(37, 7, f"- INR {delivery_charge:,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
+            cust_pdf.cell(37, 7, f"- INR {float(delivery_charge):,.2f}", border=1, align="R", fill=True, new_x="LMARGIN", new_y="NEXT")
                     
                     # Highlight Net Profit
             cust_pdf.set_x(170)
