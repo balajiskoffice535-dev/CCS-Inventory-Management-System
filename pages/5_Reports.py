@@ -115,7 +115,7 @@ if generate_btn:
                 COALESCE(t.invoice_number, '-') as "Invoice No.",
                 COALESCE(c.customer_name, 'Unsold') as "Customer Name",
                 COALESCE(t.sales_rate, 0) as "Rate - Without Tax (S)",
-                t.payment_date as "Payment Date"
+                t.date_of_payment as "Payment Date"
             FROM transactions t
             LEFT JOIN suppliers s ON t.supplier_id = s.id
             LEFT JOIN customers c ON t.customer_id = c.id
